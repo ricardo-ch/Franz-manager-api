@@ -1,5 +1,6 @@
 package com.greencomnetworks.franzmanager;
 
+import com.greencomnetworks.franzmanager.services.KafkaConsumerOffsetReader;
 import org.glassfish.grizzly.http.server.*;
 import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
 import org.glassfish.jersey.jackson.JacksonFeature;
@@ -41,13 +42,13 @@ public class FranzManagerApi {
         serverConfiguration.addHttpHandler(new StaticHttpHandler("apidoc") {
             @Override
             protected void onMissingResource(Request request, Response response) throws Exception {
-                logger.error("carapuce");
                 super.onMissingResource(request, response);
             }
         }, HttpHandlerRegistration.builder().contextPath(apiConfig.basePath + "/apidoc").urlPattern("/").build());
 
         server.start();
 
+        KafkaConsumerOffsetReader kafkaConsumerOffsetReader = KafkaConsumerOffsetReader.INSTANCE;
         logger.info("Server started on port {} under {}.", apiConfig.apiPort, apiConfig.basePath);
 
         return this;

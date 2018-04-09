@@ -2,27 +2,35 @@ package com.greencomnetworks.franzmanager.resources;
 
 import com.greencomnetworks.franzmanager.entities.Broker;
 import com.greencomnetworks.franzmanager.entities.HttpError;
+import com.greencomnetworks.franzmanager.entities.Partition;
 import com.greencomnetworks.franzmanager.entities.Topic;
 import com.greencomnetworks.franzmanager.services.AdminClientService;
+import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
 import org.apache.kafka.clients.admin.*;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.KafkaFuture;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.serialization.Serdes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Path("/topics")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
-public class TopicsResource {
+public class
+TopicsResource {
     private static final Logger logger = LoggerFactory.getLogger(TopicsResource.class);
 
     private final AdminClient adminClient;
@@ -67,7 +75,6 @@ public class TopicsResource {
                                         ConfigEntry::name,
                                         ConfigEntry::value
                                 ));
-
                         return new Topic(topicName, describedTopic.partitions().size(), describedTopic.partitions().get(0).replicas().size(), configurations);
                     }).collect(Collectors.toList());
 
@@ -103,7 +110,7 @@ public class TopicsResource {
 
     @GET
     @Path("/{topicId}")
-    public Object getTopic(@PathParam("topicId") String topicId) {
+    public Object getTopic(@PathParam("topicId") String topicId, @QueryParam("withPartitions") Boolean withPartitions) {
         Collection<ConfigResource> configResources = Stream.of(new ConfigResource(ConfigResource.Type.TOPIC, topicId)).collect(Collectors.toSet());
 
         KafkaFuture<Map<String, TopicDescription>> describedTopicsFuture = adminClient.describeTopics(Stream.of(topicId).collect(Collectors.toSet())).all();
@@ -144,6 +151,23 @@ public class TopicsResource {
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @GET
+    @Path("/{topicId}/partitions")
+    public List<Partition> getTopicPartitions(@PathParam("topicId") String topicId){
+        Properties config = new Properties();
+        config.put("bootstrap.servers", ConstantsService.brokersList);
+        KafkaConsumer<ByteBuffer, ByteBuffer> consumer = new KafkaConsumer<>(config, Serdes.ByteBuffer().deserializer(), Serdes.ByteBuffer().deserializer());
+        List<TopicPartition> topicPartitions = consumer.partitionsFor(topicId).stream()
+                .map(pi -> new TopicPartition(pi.topic(), pi.partition()))
+                .collect(Collectors.toList());
+        Map<TopicPartition, Long> offsetsEnd = consumer.endOffsets(topicPartitions);
+
+        return offsetsEnd.entrySet()
+                .stream()
+                .map(entry ->  new Partition(topicId, entry.getKey().partition(), entry.getValue()))
+                .collect(Collectors.toList());
     }
 
     private boolean topicExist(String id) {

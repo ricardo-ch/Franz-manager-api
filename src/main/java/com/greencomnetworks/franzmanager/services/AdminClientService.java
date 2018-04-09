@@ -16,5 +16,4 @@ public class AdminClientService {
     public static AdminClient getInstance() {
         return adminClient;
     }
-
 }
