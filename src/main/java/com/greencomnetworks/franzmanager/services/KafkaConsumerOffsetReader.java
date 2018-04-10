@@ -41,9 +41,8 @@ public enum KafkaConsumerOffsetReader {
         // against which the application is run.
         streamsConfiguration.put(StreamsConfig.APPLICATION_ID_CONFIG, KafkaConsumerOffsetReader.class.getName());
         // Where to find Kafka broker(s).
-        streamsConfiguration.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "10.46.2.91:9092,10.46.2.92:9092,10.46.2.93:9092");
+        streamsConfiguration.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, ConstantsService.brokersList);
         // Where to find the corresponding ZooKeeper ensemble.
-        //streamsConfiguration.put(StreamsConfig.ZOOKEEPER_CONNECT_CONFIG, "10.46.2.91:2181,10.46.2.92:2181,10.46.2.93:2181");//TODO Change this to get value from configuration
         // Specify default (de)serializers for record keys and for record values.
         streamsConfiguration.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.ByteBuffer().getClass().getName());
         streamsConfiguration.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.ByteBuffer().getClass().getName());
@@ -53,7 +52,7 @@ public enum KafkaConsumerOffsetReader {
         //streamsConfiguration.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 10 * 1000);
 
         //To handle old messages/topic without proper timestamp
-        streamsConfiguration.put(StreamsConfig.DEFAULT_TIMESTAMP_EXTRACTOR_CLASS_CONFIG, WallclockTimestampExtractor.class);//TODO change me
+        streamsConfiguration.put(StreamsConfig.DEFAULT_TIMESTAMP_EXTRACTOR_CLASS_CONFIG, WallclockTimestampExtractor.class);
 
         streamsConfiguration.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
 
