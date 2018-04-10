@@ -1,8 +1,8 @@
-###Franz-manager-api
+### Franz-manager-api
 
 This api should work with the front-end franz-manager --> [here](https://github.com/GreenCom-Networks/Franz-manager)
 
-####Development
+#### Development
 
 First, install the dependencies by running `mvn clean package`.
 
@@ -11,7 +11,7 @@ Then, execute the class `FranzManagerApi.java`.
 Api should be available at localhost:1337
 Apidoc can be found here --> localhost:1337/franz-manager-api/apidoc/
 
-####Docker
+#### Docker
 
 Install dependencies like previous step.
 
