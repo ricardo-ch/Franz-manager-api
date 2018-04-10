@@ -1,9 +1,6 @@
 package com.greencomnetworks.franzmanager;
 
-<<<<<<< HEAD
 import com.greencomnetworks.franzmanager.services.KafkaConsumerOffsetReader;
-=======
->>>>>>> github/master
 import org.glassfish.grizzly.http.server.*;
 import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
 import org.glassfish.jersey.jackson.JacksonFeature;
