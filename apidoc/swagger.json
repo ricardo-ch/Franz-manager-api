@@ -1,7 +1,11 @@
 {
   "swagger": "2.0",
   "info": {
+<<<<<<< HEAD
     "description": "Documentation for Kafka-manager-api.",
+=======
+    "description": "Documentation for franz-manager-api.",
+>>>>>>> github/master
     "version": "1.0.0",
     "title": "Kafka-manager-api",
     "contact": {
