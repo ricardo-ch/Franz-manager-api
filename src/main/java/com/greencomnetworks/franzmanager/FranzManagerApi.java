@@ -51,7 +51,6 @@ public class FranzManagerApi {
 
         KafkaConsumerOffsetReader kafkaConsumerOffsetReader = KafkaConsumerOffsetReader.INSTANCE;
         KafkaMetricsService kafkaMetricsService = new KafkaMetricsService();
-
         logger.info("Server started on port {} under {}.", apiConfig.apiPort, apiConfig.basePath);
 
         return this;

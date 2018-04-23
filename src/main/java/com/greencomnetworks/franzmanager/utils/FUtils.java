@@ -11,11 +11,6 @@ import java.util.stream.Collectors;
 
 /**
  * Functional Utils
- *
-<<<<<<< HEAD
- * Created by Loïc Gaillard.
-=======
->>>>>>> github/master
  */
 public class FUtils {
 

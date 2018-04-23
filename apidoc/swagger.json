@@ -5,11 +5,16 @@
     "description": "Documentation for Kafka-manager-api.",
 =======
 <<<<<<< HEAD
+<<<<<<< HEAD
     "description": "Documentation for Kafka-manager-api.",
 =======
     "description": "Documentation for franz-manager-api.",
 >>>>>>> github/master
 >>>>>>> github/master
+=======
+    "description": "Documentation for franz-manager-api.",
+>>>>>>> github/master
+>>>>>>> c22a645512f823fb77a3218dafffff9d95301de4
     "version": "1.0.0",
     "title": "Kafka-manager-api",
     "contact": {
