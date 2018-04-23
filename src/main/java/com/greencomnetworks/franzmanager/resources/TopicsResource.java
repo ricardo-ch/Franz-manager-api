@@ -10,6 +10,8 @@ import com.greencomnetworks.franzmanager.utils.FUtils;
 import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.KafkaFuture;
+import org.apache.kafka.common.Node;
+import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.serialization.Serdes;
@@ -19,10 +21,10 @@ import org.slf4j.LoggerFactory;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -155,7 +157,7 @@ TopicsResource {
 
     @GET
     @Path("/{topicId}/partitions")
-    public List<Partition> getTopicPartitions(@PathParam("topicId") String topicId){
+    public List<Partition> getTopicPartitions(@PathParam("topicId") String topicId) {
         Properties config = new Properties();
         config.put("bootstrap.servers", ConstantsService.brokersList);
         KafkaConsumer<ByteBuffer, ByteBuffer> consumer = new KafkaConsumer<>(config, Serdes.ByteBuffer().deserializer(), Serdes.ByteBuffer().deserializer());
@@ -163,14 +165,25 @@ TopicsResource {
                 .map(pi -> new TopicPartition(pi.topic(), pi.partition()))
                 .collect(Collectors.toList());
         Map<TopicPartition, Long> offsetsEnd = consumer.endOffsets(topicPartitions);
+        Map<TopicPartition, Long> offsetsBeginning = consumer.beginningOffsets(topicPartitions);
+
+        List<PartitionInfo> partitionInfos = consumer.partitionsFor(topicId);
 
         return offsetsEnd.entrySet()
                 .stream()
-                .map(entry ->  new Partition(topicId, entry.getKey().partition(), entry.getValue()))
+                .map(entry -> {
+                    PartitionInfo partition = partitionInfos.stream().filter(partitionInfo -> partitionInfo.partition() == entry.getKey().partition()).collect(Collectors.toList()).get(0);
+                    return new Partition(topicId, entry.getKey().partition(), offsetsBeginning.get(entry.getKey()),
+                            entry.getValue(), partition.leader().id(), nodesToInts(partition.replicas()), nodesToInts(partition.inSyncReplicas()), nodesToInts(partition.offlineReplicas()));
+                })
                 .collect(Collectors.toList());
     }
 
     private boolean topicExist(String id) {
         return FUtils.getOrElse(() -> adminClient.describeTopics(Stream.of(id).collect(Collectors.toSet())).all().get(), null) != null;
+    }
+
+    private int[] nodesToInts(Node[] nodes){
+        return Arrays.stream(nodes).mapToInt(node -> node.id()).toArray();
     }
 }

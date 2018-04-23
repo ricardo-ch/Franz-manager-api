@@ -18,7 +18,6 @@ public class FranzManagerApiConfig {
     public static FranzManagerApiConfig fromProperties() {
         try {
             PropertiesConfiguration properties = new Configurations().properties("config.properties");
-
             return new FranzManagerApiConfig(
                     properties.getString("project_id"),
                     "/" + properties.getString("base_path"),

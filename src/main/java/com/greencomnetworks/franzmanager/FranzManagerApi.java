@@ -1,6 +1,7 @@
 package com.greencomnetworks.franzmanager;
 
 import com.greencomnetworks.franzmanager.services.KafkaConsumerOffsetReader;
+import com.greencomnetworks.franzmanager.services.KafkaMetricsService;
 import org.glassfish.grizzly.http.server.*;
 import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
 import org.glassfish.jersey.jackson.JacksonFeature;
@@ -49,6 +50,8 @@ public class FranzManagerApi {
         server.start();
 
         KafkaConsumerOffsetReader kafkaConsumerOffsetReader = KafkaConsumerOffsetReader.INSTANCE;
+        KafkaMetricsService kafkaMetricsService = new KafkaMetricsService();
+
         logger.info("Server started on port {} under {}.", apiConfig.apiPort, apiConfig.basePath);
 
         return this;
