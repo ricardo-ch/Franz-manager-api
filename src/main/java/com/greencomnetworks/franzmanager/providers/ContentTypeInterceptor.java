@@ -11,9 +11,6 @@ import javax.ws.rs.ext.ReaderInterceptor;
 import javax.ws.rs.ext.ReaderInterceptorContext;
 import java.io.IOException;
 
-/**
- * Created by Loïc Gaillard.
- */
 @Provider
 @PreMatching
 public class ContentTypeInterceptor implements ReaderInterceptor {

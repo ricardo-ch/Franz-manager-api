@@ -4,7 +4,11 @@ import javax.ws.rs.ClientErrorException;
 import javax.ws.rs.core.Response;
 
 /**
+<<<<<<< HEAD
  * Created by Loïc Gaillard.
+=======
+ *
+>>>>>>> github/master
  */
 public class ConflictException extends ClientErrorException {
 

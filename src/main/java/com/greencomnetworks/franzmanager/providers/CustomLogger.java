@@ -22,13 +22,13 @@ import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Created by Loïc Gaillard.
+ *
  */
 @Provider
 @PreMatching
 @Priority(Integer.MIN_VALUE)
-public class GCNLogger implements ApplicationEventListener {
-    private static final Logger logger = LoggerFactory.getLogger(GCNLogger.class);
+public class CustomLogger implements ApplicationEventListener {
+    private static final Logger logger = LoggerFactory.getLogger(CustomLogger.class);
 
     @Override
     public void onEvent(ApplicationEvent event) {
@@ -37,11 +37,11 @@ public class GCNLogger implements ApplicationEventListener {
 
     @Override
     public RequestEventListener onRequest(RequestEvent requestEvent) {
-        return new GCNRequestEventListener();
+        return new CustomRequestEventListener();
     }
 
 
-    public static class GCNRequestEventListener implements RequestEventListener {
+    public static class CustomRequestEventListener implements RequestEventListener {
 
         private static final int ENTITY_MAX_BYTES_SIZE = 1024 * 8; // 8KB
 
@@ -53,7 +53,7 @@ public class GCNLogger implements ApplicationEventListener {
 
         private String body;
 
-        public GCNRequestEventListener() {
+        public CustomRequestEventListener() {
             callId = callCount.incrementAndGet();
             startTime = Instant.now();
 
@@ -81,19 +81,14 @@ public class GCNLogger implements ApplicationEventListener {
                 String requestedFile = path;
                 if(query != null) requestedFile = path + "?" + query;
 
-                String apiKey = containerRequest.getHeaderString("GCN-APIKEY");
-                String session = containerRequest.getHeaderString("SESSION");
-
                 if(body == null) {
-                    logger.info("{}| {} {} - {}  [{} ms]\n{}| GCN-APIKEY:{} - SESSION:{}",
-                        callId, method, requestedFile, status, requestDuration.toMillis(),
-                        callId, apiKey, session
+                    logger.info("{} | {} {} - {}  [{} ms]\n{}",
+                        callId, method, requestedFile, status, requestDuration.toMillis(), callId
                     );
                 } else {
-                    logger.info("{}| {} {} - {}  [{} ms]\n{}| GCN-APIKEY:{} - SESSION:{}\n\"{}| {}\"",
+                    logger.info("{} | {} {} - {}  [{} ms]\n{}",
                         callId, method, requestedFile, status, requestDuration.toMillis(),
-                        callId, apiKey, session,
-                        callId, StringEscapeUtils.escapeJava(body)
+                        callId, callId, StringEscapeUtils.escapeJava(body)
                     );
                 }
 

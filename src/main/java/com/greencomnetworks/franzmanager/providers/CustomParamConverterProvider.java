@@ -9,10 +9,10 @@ import java.lang.reflect.Type;
 import java.time.ZonedDateTime;
 
 /**
- * Created by Loïc Gaillard.
+ *
  */
 @Provider
-public class GCNParamConverterProvider implements ParamConverterProvider {
+public class CustomParamConverterProvider implements ParamConverterProvider {
 
     @Override
     public <T> ParamConverter<T> getConverter(Class<T> rawType, Type genericType, Annotation[] annotations) {

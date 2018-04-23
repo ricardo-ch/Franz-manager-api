@@ -1,7 +1,7 @@
-FROM docker.gcn-lab.fr:5043/greencom-networks/oracle-java8
+FROM java:8-alpine
 
 ENV APP franz-manager-api
-WORKDIR /usr/local/GCN/$APP
+WORKDIR /usr/local/$APP
 
 COPY apidoc apidoc
 

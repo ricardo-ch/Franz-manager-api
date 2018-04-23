@@ -1,7 +1,15 @@
 {
   "swagger": "2.0",
   "info": {
+<<<<<<< HEAD
     "description": "Documentation for Kafka-manager-api.",
+=======
+<<<<<<< HEAD
+    "description": "Documentation for Kafka-manager-api.",
+=======
+    "description": "Documentation for franz-manager-api.",
+>>>>>>> github/master
+>>>>>>> github/master
     "version": "1.0.0",
     "title": "Kafka-manager-api",
     "contact": {
@@ -16,7 +24,11 @@
   "consumes": [
     "application/json; charset=utf-8"
   ],
+<<<<<<< HEAD
   "host": "dev-infra.energy-app.net",
+=======
+  "host": "localhost",
+>>>>>>> github/master
   "basePath": "/franz-manager-api",
   "schemes": [
     "https"

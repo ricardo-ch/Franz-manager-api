@@ -17,12 +17,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Created by Loïc Gaillard.
+ *
  */
 @Provider
 @PreMatching
-public class GCNExceptionMapper implements ExceptionMapper<Exception> {
-    private static final Logger logger = LoggerFactory.getLogger(GCNExceptionMapper.class);
+public class CustomExceptionMapper implements ExceptionMapper<Exception> {
+    private static final Logger logger = LoggerFactory.getLogger(CustomExceptionMapper.class);
 
     @Override
     public Response toResponse(Exception e) {

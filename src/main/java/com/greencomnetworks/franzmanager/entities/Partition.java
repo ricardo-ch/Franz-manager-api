@@ -61,7 +61,6 @@ public class Partition {
     }
 
     public String getTopic() {
-
         return topic;
     }
     public void setTopic(String topic) {

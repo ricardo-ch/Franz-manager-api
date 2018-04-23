@@ -21,7 +21,6 @@ import org.slf4j.LoggerFactory;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -31,8 +30,7 @@ import java.util.stream.Stream;
 @Path("/topics")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
-public class
-TopicsResource {
+public class TopicsResource {
     private static final Logger logger = LoggerFactory.getLogger(TopicsResource.class);
 
     private final AdminClient adminClient;
@@ -112,7 +110,7 @@ TopicsResource {
 
     @GET
     @Path("/{topicId}")
-    public Object getTopic(@PathParam("topicId") String topicId, @QueryParam("withPartitions") Boolean withPartitions) {
+    public Object getTopic(@PathParam("topicId") String topicId) {
         Collection<ConfigResource> configResources = Stream.of(new ConfigResource(ConfigResource.Type.TOPIC, topicId)).collect(Collectors.toSet());
 
         KafkaFuture<Map<String, TopicDescription>> describedTopicsFuture = adminClient.describeTopics(Stream.of(topicId).collect(Collectors.toSet())).all();
@@ -157,7 +155,7 @@ TopicsResource {
 
     @GET
     @Path("/{topicId}/partitions")
-    public List<Partition> getTopicPartitions(@PathParam("topicId") String topicId) {
+    public List<Partition> getTopicPartitions(@PathParam("topicId") String topicId){
         Properties config = new Properties();
         config.put("bootstrap.servers", ConstantsService.brokersList);
         KafkaConsumer<ByteBuffer, ByteBuffer> consumer = new KafkaConsumer<>(config, Serdes.ByteBuffer().deserializer(), Serdes.ByteBuffer().deserializer());
