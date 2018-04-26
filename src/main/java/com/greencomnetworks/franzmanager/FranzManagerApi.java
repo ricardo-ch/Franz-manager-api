@@ -47,10 +47,12 @@ public class FranzManagerApi {
             }
         }, HttpHandlerRegistration.builder().contextPath(apiConfig.basePath + "/apidoc").urlPattern("/").build());
 
-        server.start();
 
         KafkaConsumerOffsetReader kafkaConsumerOffsetReader = KafkaConsumerOffsetReader.INSTANCE;
         KafkaMetricsService kafkaMetricsService = new KafkaMetricsService();
+
+        server.start();
+
         logger.info("Server started on port {} under {}.", apiConfig.apiPort, apiConfig.basePath);
 
         return this;

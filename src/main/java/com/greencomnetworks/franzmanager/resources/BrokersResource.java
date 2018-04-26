@@ -3,21 +3,23 @@ package com.greencomnetworks.franzmanager.resources;
 import com.greencomnetworks.franzmanager.entities.Broker;
 import com.greencomnetworks.franzmanager.entities.HttpError;
 import com.greencomnetworks.franzmanager.services.AdminClientService;
+import com.greencomnetworks.franzmanager.services.KafkaMetricsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.config.ConfigResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.management.*;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.IOException;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -53,7 +55,18 @@ public class BrokersResource {
                     configs.put(entry.name(), entry.value());
                 }
 
-                return new Broker(cluster.idString(), cluster.host(), cluster.port(), configs);
+                Float bytesIn = null;
+                Float bytesOut = null;
+
+                try {
+                    MBeanServerConnection mbsc = KafkaMetricsService.mBeanServerConnections.get(cluster.host());
+                    bytesIn = Float.valueOf(mbsc.getAttribute(new ObjectName("kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec"), "OneMinuteRate").toString());
+                    bytesOut = Float.valueOf(mbsc.getAttribute(new ObjectName("kafka.server:type=BrokerTopicMetrics,name=BytesOutPerSec"), "OneMinuteRate").toString());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
+                return new Broker(cluster.idString(), cluster.host(), cluster.port(), configs, bytesIn, bytesOut);
             }).collect(Collectors.toList());
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
@@ -82,7 +95,18 @@ public class BrokersResource {
                 configs.put(entry.name(), entry.value());
             }
 
-            return new Broker(node.idString(), node.host(), node.port(), configs);
+            Float bytesIn = null;
+            Float bytesOut = null;
+
+            try {
+                MBeanServerConnection mbsc = KafkaMetricsService.mBeanServerConnections.get(node.host());
+                bytesIn = Float.valueOf(mbsc.getAttribute(new ObjectName("kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec"), "OneMinuteRate").toString());
+                bytesOut = Float.valueOf(mbsc.getAttribute(new ObjectName("kafka.server:type=BrokerTopicMetrics,name=BytesOutPerSec"), "OneMinuteRate").toString());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            return new Broker(node.idString(), node.host(), node.port(), configs, bytesIn, bytesOut);
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
         }

@@ -24,7 +24,7 @@ public class MetricsResource {
     private static final Logger logger = LoggerFactory.getLogger(MetricsResource.class);
 
     @GET
-    public Object get(@QueryParam("metricType") String metricType, @QueryParam("metricName") String metricName, @QueryParam("topic") String topic) throws IOException, MalformedObjectNameException, IntrospectionException, InstanceNotFoundException, ReflectionException, AttributeNotFoundException, MBeanException {
+    public Object get(@QueryParam("metricType") String metricType, @QueryParam("metricName") String metricName, @QueryParam("topic") String topic) throws IOException, AttributeNotFoundException, MBeanException, ReflectionException, InstanceNotFoundException, MalformedObjectNameException {
         if (metricName == null) {
             return new HttpError(400, "Missing query parameter 'metricName'");
         } else if (metricType == null) {
@@ -42,18 +42,22 @@ public class MetricsResource {
         ObjectName objName = new ObjectName(queryString);
         Metric metric = new Metric(metricType, metricName, topic, new HashMap<>());
 
-        for (MBeanServerConnection mbsc : KafkaMetricsService.mBeanServerConnections) {
-            MBeanInfo beanInfo = mbsc.getMBeanInfo(objName);
-
-            for (MBeanAttributeInfo attr : beanInfo.getAttributes()) {
-                Object value = mbsc.getAttribute(objName, attr.getName());
-                if (NumberUtils.isCreatable(String.valueOf(value))) {
-                    Float floatValue = Float.parseFloat(String.valueOf(value));
-                    Float existingValue = Float.parseFloat(String.valueOf(FUtils.getOrElse(metric.metrics.get(attr.getName()), 0)));
-                    metric.metrics.put(attr.getName(), floatValue + existingValue);
-                } else {
-                    metric.metrics.put(attr.getName(), value);
+        for (MBeanServerConnection mbsc : KafkaMetricsService.mBeanServerConnections.values()) {
+            try {
+                MBeanInfo beanInfo = mbsc.getMBeanInfo(objName);
+                for (MBeanAttributeInfo attr : beanInfo.getAttributes()) {
+                    Object value = mbsc.getAttribute(objName, attr.getName());
+                    if (NumberUtils.isCreatable(String.valueOf(value))) {
+                        Float floatValue = Float.parseFloat(String.valueOf(value));
+                        Float existingValue = Float.parseFloat(String.valueOf(FUtils.getOrElse(metric.metrics.get(attr.getName()), 0)));
+                        metric.metrics.put(attr.getName(), floatValue + existingValue);
+                    } else {
+                        metric.metrics.put(attr.getName(), value);
+                    }
                 }
+            } catch (IntrospectionException e) {
+                // that means a jmx server is not available
+                logger.warn("A jmx server cannot be reached : {}", e.getMessage());
             }
         }
 
