@@ -7,6 +7,7 @@ This api should work with the front-end franz-manager --> [here](https://github.
 The api needs 2 environment variables to work :
 
 KAFKA_BROKERS (ie -> '127.0.0.2:2181,127.0.0.3:2181,127.0.0.4:2181')
+
 KAFKA_BROKERS_JMX (ie -> '127.0.0.2:9997,127.0.0.3:9997,127.0.0.4:9997')
 
 #### Development
