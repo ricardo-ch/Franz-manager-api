@@ -1,8 +1,11 @@
 package com.greencomnetworks.franzmanager;
 
+import com.greencomnetworks.franzmanager.resources.LiveMessagesResource;
 import com.greencomnetworks.franzmanager.services.KafkaConsumerOffsetReader;
 import com.greencomnetworks.franzmanager.services.KafkaMetricsService;
 import org.glassfish.grizzly.http.server.*;
+import org.glassfish.grizzly.websockets.WebSocketAddOn;
+import org.glassfish.grizzly.websockets.WebSocketEngine;
 import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
 import org.glassfish.jersey.jackson.JacksonFeature;
 import org.glassfish.jersey.logging.LoggingFeature;
@@ -38,6 +41,14 @@ public class FranzManagerApi {
         config.packages(this.getClass().getPackage().getName() + ".resources");
 
         HttpServer server = GrizzlyHttpServerFactory.createHttpServer(baseUri, config, false);
+
+        // register websocket stuff
+        WebSocketAddOn webSocketAddOn = new WebSocketAddOn();
+        NetworkListener webSocketListener = new NetworkListener("websocket", "0.0.0.0", 5443);
+        webSocketListener.registerAddOn(webSocketAddOn);
+        server.addListener(webSocketListener);
+
+        WebSocketEngine.getEngine().register(apiConfig.basePath, "/", LiveMessagesResource.getInstance());
 
         ServerConfiguration serverConfiguration = server.getServerConfiguration();
         serverConfiguration.addHttpHandler(new StaticHttpHandler("apidoc") {

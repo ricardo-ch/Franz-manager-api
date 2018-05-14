@@ -38,7 +38,8 @@ public class MessagesResource {
 
     @GET
     public Object getMessages(@PathParam("topicId") String topicId,
-                                     @DefaultValue("10") @QueryParam("quantity") Integer quantity) {
+                              @DefaultValue("10") @QueryParam("quantity") Integer quantity,
+                              @QueryParam("from") Long from) {
         KafkaFuture<Map<String, TopicDescription>> describedTopicsFuture = adminClient.describeTopics(Stream.of(topicId).collect(Collectors.toSet())).all();
         Map<String, TopicDescription> describedTopics = FUtils.getOrElse(() -> describedTopicsFuture.get(), null);
         if (describedTopics == null) {
@@ -55,25 +56,47 @@ public class MessagesResource {
 
         final Consumer<String, String> consumer = new KafkaConsumer<>(props);
 
-
+        List<Message> messages = new ArrayList<>();
         List<TopicPartition> topicPartitions = consumer.partitionsFor(topicId).stream().map(partitionInfo -> new TopicPartition(topicId, partitionInfo.partition())).collect(Collectors.toList());
 
         consumer.assign(topicPartitions);
         consumer.seekToEnd(topicPartitions);
-        Map<TopicPartition, Long> beginningOffsets = consumer.beginningOffsets(topicPartitions);
+
+        Map<TopicPartition, Long> beginningOffsets;
+
+        if (from != null) {
+            Map<TopicPartition, Long> map = new HashMap<>();
+            Map<TopicPartition, Long> beginningOffsetsCopy = new HashMap<>();
+            topicPartitions.forEach(topicPartition -> map.put(topicPartition, from));
+
+            consumer.offsetsForTimes(map).forEach((topicPartition, offsetAndTimestamp) -> {
+                if (offsetAndTimestamp != null) {
+                    beginningOffsetsCopy.put(topicPartition, offsetAndTimestamp.offset());
+                } else {
+                    beginningOffsetsCopy.put(topicPartition, new Long(0));
+                }
+            });
+
+            beginningOffsets = beginningOffsetsCopy;
+        } else {
+            beginningOffsets = consumer.beginningOffsets(topicPartitions);
+        }
 
         for (TopicPartition topicPartition : topicPartitions) {
             long offset = consumer.position(topicPartition);
             long beginningOffset = beginningOffsets.get(topicPartition);
 
-            if (offset - beginningOffset < quantity) {
-                consumer.seekToBeginning(FUtils.List.of(topicPartition));
+            if (from != null) {
+                consumer.seek(topicPartition, beginningOffset);
             } else {
-                consumer.seek(topicPartition, offset - quantity);
+                if (offset - beginningOffset < quantity) {
+                    consumer.seekToBeginning(FUtils.List.of(topicPartition));
+                } else {
+                    consumer.seek(topicPartition, offset - quantity);
+                }
             }
         }
 
-        List<Message> messages = new ArrayList<>();
         final int giveUp = 5;
         int noRecordsCount = 0;
         while (true) {
@@ -85,12 +108,18 @@ public class MessagesResource {
                 consumerRecords.forEach(record -> {
                     messages.add(new Message(record.value(), record.key(), record.partition(), record.offset(), record.timestamp()));
                 });
-                if (messages.size() == topicPartitions.size() * quantity) break;
+                if (from == null && messages.size() == topicPartitions.size() * quantity) break;
             }
         }
 
         consumer.close();
 
-        return messages.stream().sorted((m1, m2) -> -Long.compare(m1.timestamp, m2.timestamp)).limit(quantity).collect(Collectors.toList());
+        List<Message> resultMessages = messages.stream().sorted((m1, m2) -> -Long.compare(m1.timestamp, m2.timestamp)).collect(Collectors.toList());
+
+        if (from != null) {
+            return resultMessages.stream().filter(message -> message.timestamp != -1).collect(Collectors.toList());
+        } else {
+            return resultMessages.stream().limit(quantity).collect(Collectors.toList());
+        }
     }
 }
