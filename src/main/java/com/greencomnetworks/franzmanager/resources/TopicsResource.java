@@ -134,6 +134,18 @@ public class TopicsResource {
         return new Topic(topicId, describedTopics.get(topicId).partitions().size(), describedTopics.get(topicId).partitions().get(0).replicas().size(), configurations);
     }
 
+    @PUT
+    @Path("/{topicId}")
+    public Response updateTopicConfig(@PathParam("topicId") String topicId, HashMap<String, String> configurations) {
+        logger.info(configurations.toString());
+        Map<ConfigResource, Config> configs = new HashMap<>();
+        ConfigResource configResource = new ConfigResource(ConfigResource.Type.TOPIC, topicId);
+        List<ConfigEntry> configEntries = configurations.entrySet().stream().map(entry -> new ConfigEntry(entry.getKey(), entry.getValue())).collect(Collectors.toList());
+        configs.put(configResource, new Config(configEntries));
+        adminClient.alterConfigs(configs);
+        return null;
+    }
+
     @DELETE
     @Path("/{topicId}")
     public Response deleteTopic(@PathParam("topicId") String topicId) {
@@ -156,7 +168,7 @@ public class TopicsResource {
 
     @GET
     @Path("/{topicId}/partitions")
-    public List<Partition> getTopicPartitions(@PathParam("topicId") String topicId){
+    public List<Partition> getTopicPartitions(@PathParam("topicId") String topicId) {
         Properties config = new Properties();
         config.put("bootstrap.servers", ConstantsService.brokersList);
         KafkaConsumer<ByteBuffer, ByteBuffer> consumer = new KafkaConsumer<>(config, Serdes.ByteBuffer().deserializer(), Serdes.ByteBuffer().deserializer());
@@ -178,11 +190,25 @@ public class TopicsResource {
                 .collect(Collectors.toList());
     }
 
+    @POST
+    @Path("/{topicId}/partitions")
+    public List<Partition> postTopicPartitions(@PathParam("topicId") String topicId, @QueryParam("quantity") Integer quantity) {
+        Properties config = new Properties();
+        config.put("bootstrap.servers", ConstantsService.brokersList);
+        KafkaConsumer<ByteBuffer, ByteBuffer> consumer = new KafkaConsumer<>(config, Serdes.ByteBuffer().deserializer(), Serdes.ByteBuffer().deserializer());
+        List<PartitionInfo> partitionInfos = consumer.partitionsFor(topicId);
+
+        HashMap<String, NewPartitions> newPartitions = new HashMap<>();
+        newPartitions.put(topicId, NewPartitions.increaseTo(partitionInfos.size() + quantity));
+        adminClient.createPartitions(newPartitions);
+        return null;
+    }
+
     private boolean topicExist(String id) {
         return FUtils.getOrElse(() -> adminClient.describeTopics(Stream.of(id).collect(Collectors.toSet())).all().get(), null) != null;
     }
 
-    private int[] nodesToInts(Node[] nodes){
+    private int[] nodesToInts(Node[] nodes) {
         return Arrays.stream(nodes).mapToInt(node -> node.id()).toArray();
     }
 }
