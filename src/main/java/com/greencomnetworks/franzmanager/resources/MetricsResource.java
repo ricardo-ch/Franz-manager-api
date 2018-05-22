@@ -58,6 +58,8 @@ public class MetricsResource {
             } catch (IntrospectionException e) {
                 // that means a jmx server is not available
                 logger.warn("A jmx server cannot be reached : {}", e.getMessage());
+            } catch (InstanceNotFoundException e){
+                logger.warn("Cannot retrieved this metric {{}}, maybe your kafka need to be upgraded.", queryString);
             }
         }
 
