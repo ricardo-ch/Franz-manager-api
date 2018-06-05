@@ -71,7 +71,7 @@ public class MessagesResource {
 
             consumer.offsetsForTimes(map).forEach((topicPartition, offsetAndTimestamp) -> {
                 if (offsetAndTimestamp != null) {
-                    beginningOffsetsCopy.put(topicPartition, offsetAndTimestamp.offset());
+                    beginningOffsetsCopy.put(topicPartition,  offsetAndTimestamp.offset());
                 } else {
                     beginningOffsetsCopy.put(topicPartition, new Long(0));
                 }
@@ -117,7 +117,7 @@ public class MessagesResource {
         List<Message> resultMessages = messages.stream().sorted((m1, m2) -> -Long.compare(m1.timestamp, m2.timestamp)).collect(Collectors.toList());
 
         if (from != null) {
-            return resultMessages.stream().filter(message -> message.timestamp != -1).collect(Collectors.toList());
+            return resultMessages.stream().filter(message -> message.timestamp != -1 && message.timestamp > from).collect(Collectors.toList());
         } else {
             return resultMessages.stream().limit(quantity).collect(Collectors.toList());
         }
