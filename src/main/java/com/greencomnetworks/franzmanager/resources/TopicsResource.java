@@ -172,22 +172,26 @@ public class TopicsResource {
         Properties config = new Properties();
         config.put("bootstrap.servers", ConstantsService.brokersList);
         KafkaConsumer<ByteBuffer, ByteBuffer> consumer = new KafkaConsumer<>(config, Serdes.ByteBuffer().deserializer(), Serdes.ByteBuffer().deserializer());
-        List<TopicPartition> topicPartitions = consumer.partitionsFor(topicId).stream()
-                .map(pi -> new TopicPartition(pi.topic(), pi.partition()))
-                .collect(Collectors.toList());
-        Map<TopicPartition, Long> offsetsEnd = consumer.endOffsets(topicPartitions);
-        Map<TopicPartition, Long> offsetsBeginning = consumer.beginningOffsets(topicPartitions);
+        try {
+            List<TopicPartition> topicPartitions = consumer.partitionsFor(topicId).stream()
+                    .map(pi -> new TopicPartition(pi.topic(), pi.partition()))
+                    .collect(Collectors.toList());
+            Map<TopicPartition, Long> offsetsEnd = consumer.endOffsets(topicPartitions);
+            Map<TopicPartition, Long> offsetsBeginning = consumer.beginningOffsets(topicPartitions);
 
-        List<PartitionInfo> partitionInfos = consumer.partitionsFor(topicId);
+            List<PartitionInfo> partitionInfos = consumer.partitionsFor(topicId);
 
-        return offsetsEnd.entrySet()
-                .stream()
-                .map(entry -> {
-                    PartitionInfo partition = partitionInfos.stream().filter(partitionInfo -> partitionInfo.partition() == entry.getKey().partition()).collect(Collectors.toList()).get(0);
-                    return new Partition(topicId, entry.getKey().partition(), offsetsBeginning.get(entry.getKey()),
-                            entry.getValue(), partition.leader().id(), nodesToInts(partition.replicas()), nodesToInts(partition.inSyncReplicas()), nodesToInts(partition.offlineReplicas()));
-                })
-                .collect(Collectors.toList());
+            return offsetsEnd.entrySet()
+                    .stream()
+                    .map(entry -> {
+                        PartitionInfo partition = partitionInfos.stream().filter(partitionInfo -> partitionInfo.partition() == entry.getKey().partition()).collect(Collectors.toList()).get(0);
+                        return new Partition(topicId, entry.getKey().partition(), offsetsBeginning.get(entry.getKey()),
+                                entry.getValue(), partition.leader().id(), nodesToInts(partition.replicas()), nodesToInts(partition.inSyncReplicas()), nodesToInts(partition.offlineReplicas()));
+                    })
+                    .collect(Collectors.toList());
+        } finally {
+            consumer.close();
+        }
     }
 
     @POST
@@ -196,11 +200,15 @@ public class TopicsResource {
         Properties config = new Properties();
         config.put("bootstrap.servers", ConstantsService.brokersList);
         KafkaConsumer<ByteBuffer, ByteBuffer> consumer = new KafkaConsumer<>(config, Serdes.ByteBuffer().deserializer(), Serdes.ByteBuffer().deserializer());
-        List<PartitionInfo> partitionInfos = consumer.partitionsFor(topicId);
+        try {
+            List<PartitionInfo> partitionInfos = consumer.partitionsFor(topicId);
 
-        HashMap<String, NewPartitions> newPartitions = new HashMap<>();
-        newPartitions.put(topicId, NewPartitions.increaseTo(partitionInfos.size() + quantity));
-        adminClient.createPartitions(newPartitions);
+            HashMap<String, NewPartitions> newPartitions = new HashMap<>();
+            newPartitions.put(topicId, NewPartitions.increaseTo(partitionInfos.size() + quantity));
+            adminClient.createPartitions(newPartitions);
+        } finally {
+            consumer.close();
+        }
         return null;
     }
 
