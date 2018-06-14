@@ -32,7 +32,7 @@ public enum KafkaConsumerOffsetReader {
 
     private HashMap<String, ConsumerOffsetRecord> consumerOffsetRecordArray = new HashMap<>();
 
-    private KafkaConsumerOffsetReader(){
+    private KafkaConsumerOffsetReader() {
         Logger logger = LoggerFactory.getLogger(KafkaConsumerOffsetReader.class);
         logger.info("Will read topic : " + CONSUMER_OFFSET_TOPIC);
 
@@ -57,7 +57,7 @@ public enum KafkaConsumerOffsetReader {
         streamsConfiguration.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
 
         //We're trying to read an internal topic.
-        streamsConfiguration.put(ConsumerConfig.EXCLUDE_INTERNAL_TOPICS_CONFIG , false);
+        streamsConfiguration.put(ConsumerConfig.EXCLUDE_INTERNAL_TOPICS_CONFIG, false);
 
         // In the subsequent lines we define the processing topology of the Streams application.
         StreamsBuilder builder = new StreamsBuilder();
@@ -68,7 +68,7 @@ public enum KafkaConsumerOffsetReader {
                 try {
                     Short keyVersion = keyByteBuffer.getShort();
 
-                    if(keyVersion == 1){
+                    if (keyVersion == 1) {
                         ConsumerOffsetRecord consumerOffsetRecord = new ConsumerOffsetRecord();
                         ZonedDateTime timestamp = ZonedDateTime.now();
 
@@ -86,7 +86,7 @@ public enum KafkaConsumerOffsetReader {
 
                         consumerOffsetRecord.setGroup(struct.get(OFFSET_KEY_GROUP_FIELD).toString());
                         consumerOffsetRecord.setTopic(struct.get(OFFSET_KEY_TOPIC_FIELD).toString());
-                        consumerOffsetRecord.setPartition( Integer.valueOf(struct.get(OFFSET_KEY_PARTITION_FIELD).toString()));
+                        consumerOffsetRecord.setPartition(Integer.valueOf(struct.get(OFFSET_KEY_PARTITION_FIELD).toString()));
 
                         Short valueVersion = valueByteBuffer.getShort();
                         logger.debug("Value Version is " + valueVersion);
@@ -132,12 +132,9 @@ public enum KafkaConsumerOffsetReader {
         });
 
         this.streams = new KafkaStreams(builder.build(), streamsConfiguration);
-        Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-            @Override
-            public void run() {
-                logger.info("Will close Streams");
-                streams.close();
-            }
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            logger.info("Will close Streams");
+            streams.close();
         }));
 
         logger.info("Will start Stream");

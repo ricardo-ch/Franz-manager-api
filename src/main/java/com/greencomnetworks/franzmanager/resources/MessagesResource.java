@@ -55,71 +55,73 @@ public class MessagesResource {
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
 
         final Consumer<String, String> consumer = new KafkaConsumer<>(props);
+        try {
+            List<Message> messages = new ArrayList<>();
+            List<TopicPartition> topicPartitions = consumer.partitionsFor(topicId).stream().map(partitionInfo -> new TopicPartition(topicId, partitionInfo.partition())).collect(Collectors.toList());
 
-        List<Message> messages = new ArrayList<>();
-        List<TopicPartition> topicPartitions = consumer.partitionsFor(topicId).stream().map(partitionInfo -> new TopicPartition(topicId, partitionInfo.partition())).collect(Collectors.toList());
+            consumer.assign(topicPartitions);
+            consumer.seekToEnd(topicPartitions);
 
-        consumer.assign(topicPartitions);
-        consumer.seekToEnd(topicPartitions);
-
-        Map<TopicPartition, Long> beginningOffsets;
-
-        if (from != null) {
-            Map<TopicPartition, Long> map = new HashMap<>();
-            Map<TopicPartition, Long> beginningOffsetsCopy = new HashMap<>();
-            topicPartitions.forEach(topicPartition -> map.put(topicPartition, from));
-
-            consumer.offsetsForTimes(map).forEach((topicPartition, offsetAndTimestamp) -> {
-                if (offsetAndTimestamp != null) {
-                    beginningOffsetsCopy.put(topicPartition, offsetAndTimestamp.offset());
-                } else {
-                    beginningOffsetsCopy.put(topicPartition, new Long(0));
-                }
-            });
-
-            beginningOffsets = beginningOffsetsCopy;
-        } else {
-            beginningOffsets = consumer.beginningOffsets(topicPartitions);
-        }
-
-        for (TopicPartition topicPartition : topicPartitions) {
-            long offset = consumer.position(topicPartition);
-            long beginningOffset = beginningOffsets.get(topicPartition);
+            Map<TopicPartition, Long> beginningOffsets;
 
             if (from != null) {
-                consumer.seek(topicPartition, beginningOffset);
+                Map<TopicPartition, Long> map = new HashMap<>();
+                Map<TopicPartition, Long> beginningOffsetsCopy = new HashMap<>();
+                topicPartitions.forEach(topicPartition -> map.put(topicPartition, from));
+
+                consumer.offsetsForTimes(map).forEach((topicPartition, offsetAndTimestamp) -> {
+                    if (offsetAndTimestamp != null) {
+                        beginningOffsetsCopy.put(topicPartition, offsetAndTimestamp.offset());
+                    } else {
+                        beginningOffsetsCopy.put(topicPartition, new Long(0));
+                    }
+                });
+
+                beginningOffsets = beginningOffsetsCopy;
             } else {
-                if (offset - beginningOffset < quantity) {
-                    consumer.seekToBeginning(FUtils.List.of(topicPartition));
+                beginningOffsets = consumer.beginningOffsets(topicPartitions);
+            }
+
+            for (TopicPartition topicPartition : topicPartitions) {
+                long offset = consumer.position(topicPartition);
+                long beginningOffset = beginningOffsets.get(topicPartition);
+
+                if (from != null) {
+                    consumer.seek(topicPartition, beginningOffset);
                 } else {
-                    consumer.seek(topicPartition, offset - quantity);
+                    if (offset - beginningOffset < quantity) {
+                        consumer.seekToBeginning(FUtils.List.of(topicPartition));
+                    } else {
+                        consumer.seek(topicPartition, offset - quantity);
+                    }
                 }
             }
-        }
 
-        final int giveUp = 5;
-        int noRecordsCount = 0;
-        while (true) {
-            final ConsumerRecords<String, String> consumerRecords = consumer.poll(100);
-            if (consumerRecords.count() == 0) {
-                noRecordsCount++;
-                if (noRecordsCount > giveUp) break;
-            } else {
-                consumerRecords.forEach(record -> {
-                    messages.add(new Message(record.value(), record.key(), record.partition(), record.offset(), record.timestamp()));
-                });
-                if (from == null && messages.size() == topicPartitions.size() * quantity) break;
+            final int giveUp = 5;
+            int noRecordsCount = 0;
+            while (true) {
+                final ConsumerRecords<String, String> consumerRecords = consumer.poll(100);
+                if (consumerRecords.count() == 0) {
+                    noRecordsCount++;
+                    if (noRecordsCount > giveUp) break;
+                } else {
+                    consumerRecords.forEach(record -> {
+                        messages.add(new Message(record.value(), record.key(), record.partition(), record.offset(), record.timestamp()));
+                    });
+                    if (from == null && messages.size() == topicPartitions.size() * quantity) break;
+                }
             }
-        }
 
-        consumer.close();
 
-        List<Message> resultMessages = messages.stream().sorted((m1, m2) -> -Long.compare(m1.timestamp, m2.timestamp)).collect(Collectors.toList());
+            List<Message> resultMessages = messages.stream().sorted((m1, m2) -> -Long.compare(m1.timestamp, m2.timestamp)).collect(Collectors.toList());
 
-        if (from != null) {
-            return resultMessages.stream().filter(message -> message.timestamp != -1).collect(Collectors.toList());
-        } else {
-            return resultMessages.stream().limit(quantity).collect(Collectors.toList());
+            if (from != null) {
+                return resultMessages.stream().filter(message -> message.timestamp != -1 && message.timestamp > from).collect(Collectors.toList());
+            } else {
+                return resultMessages.stream().limit(quantity).collect(Collectors.toList());
+            }
+        } finally {
+            consumer.close();
         }
     }
 }
