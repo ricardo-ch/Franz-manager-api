@@ -12,10 +12,12 @@ import org.glassfish.jersey.logging.LoggingFeature;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.bridge.SLF4JBridgeHandler;
 
 import javax.ws.rs.core.UriBuilder;
 import java.io.IOException;
 import java.net.URI;
+import java.util.logging.LogManager;
 
 public class FranzManagerApi {
     private static final Logger logger = LoggerFactory.getLogger(FranzManagerApi.class);
@@ -71,6 +73,9 @@ public class FranzManagerApi {
 
     public static void main(String[] args) {
         try {
+            LogManager.getLogManager().reset();
+            SLF4JBridgeHandler.install();
+
             FranzManagerApi api = new FranzManagerApi();
 
             api.start();
