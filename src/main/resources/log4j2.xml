@@ -1,59 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration>
-<Properties>
-    <Property name="pattern">%d{ISO8601} %-5p %c{1.} - %m%n</Property>
-</Properties>
-<Appenders>
-    <Console name="STDOUT" target="SYSTEM_OUT">
-        <PatternLayout pattern="${pattern}" />
-    </Console>
-
-    <RollingFile name="file.${project.artifactId}"
-                 fileName="./logs/${project.artifactId}.log"
-                 filePattern="./logs/${project.artifactId}.%d{yyyy-MM-dd}.log"
-                 append="true">
-        <PatternLayout pattern="${pattern}" />
-        <Policies>
-            <TimeBasedTriggeringPolicy />
-        </Policies>
-    </RollingFile>
-
-    <RollingFile name="file.${project.artifactId}.error"
-                 fileName="./logs/${project.artifactId}.error.log"
-                 filePattern="./logs/${project.artifactId}.%d{yyyy-MM-dd}.error.log"
-                 append="true">
-        <PatternLayout pattern="${pattern}" />
-        <Policies>
-            <TimeBasedTriggeringPolicy />
-        </Policies>
-    </RollingFile>
-
-    <Kafka name="kafka.${project.artifactId}"
-           topic="${env:CUSTOMER}.${project.artifactId}.log"
-           syncSend="false">
-        <PatternLayout pattern="${pattern}" />
-        <Property name="bootstrap.servers">${env:KAFKA_BROKERS}</Property>
-    </Kafka>
-
-    <Kafka name="kafka.${project.artifactId}.error"
-           topic="${env:CUSTOMER}.${project.artifactId}.error.log"
-           syncSend="false">
-        <PatternLayout pattern="${pattern}" />
-        <Property name="bootstrap.servers">${env:KAFKA_BROKERS}</Property>
-    </Kafka>
-</Appenders>
-
-
-<Loggers>
-    <Logger name="error" level="error" additivity="true">
-        <AppenderRef ref="file.${project.artifactId}.error" />
-        <AppenderRef ref="kafka.${project.artifactId}.error" />
-    </Logger>
-
-    <Root level="info">
-        <AppenderRef ref="file.${project.artifactId}" />
-        <AppenderRef ref="kafka.${project.artifactId}" />
-        <AppenderRef ref="STDOUT" />
-    </Root>
-</Loggers>
+    <Appenders>
+        <Console name="default" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{ISO8601} %-5p %c{1.} - %m%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Root level="info">
+            <AppenderRef ref="default"/>
+        </Root>
+    </Loggers>
 </Configuration>
