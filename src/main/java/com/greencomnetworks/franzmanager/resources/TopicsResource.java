@@ -45,7 +45,7 @@ public class TopicsResource {
     }
 
     @GET
-    public List<Topic> getTopics(@QueryParam("idOnly") boolean idOnly) {
+    public List<Topic> getTopics(@QueryParam("idOnly") boolean idOnly, @QueryParam("shortVersion") boolean shortVersion) {
         try {
             Set<String> topics = adminClient.listTopics().names().get();
 
@@ -76,6 +76,9 @@ public class TopicsResource {
                                         ConfigEntry::name,
                                         ConfigEntry::value
                                 ));
+                        if (shortVersion) {
+                            return new Topic(topicName, describedTopic.partitions().size(), describedTopic.partitions().get(0).replicas().size());
+                        }
                         return new Topic(topicName, describedTopic.partitions().size(), describedTopic.partitions().get(0).replicas().size(), configurations);
                     }).collect(Collectors.toList());
 
