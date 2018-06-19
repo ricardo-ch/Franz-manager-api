@@ -1,22 +1,9 @@
 {
   "swagger": "2.0",
   "info": {
-<<<<<<< HEAD
-    "description": "Documentation for Kafka-manager-api.",
-=======
-<<<<<<< HEAD
-<<<<<<< HEAD
-    "description": "Documentation for Kafka-manager-api.",
-=======
     "description": "Documentation for franz-manager-api.",
->>>>>>> github/master
->>>>>>> github/master
-=======
-    "description": "Documentation for franz-manager-api.",
->>>>>>> github/master
->>>>>>> c22a645512f823fb77a3218dafffff9d95301de4
     "version": "1.0.0",
-    "title": "Kafka-manager-api",
+    "title": "Franz-manager-api",
     "contact": {
       "name": "Anthony Saraïs",
       "email": "anthony.sarais@greencom-networks.com"
@@ -29,11 +16,7 @@
   "consumes": [
     "application/json; charset=utf-8"
   ],
-<<<<<<< HEAD
-  "host": "dev-infra.energy-app.net",
-=======
   "host": "localhost",
->>>>>>> github/master
   "basePath": "/franz-manager-api",
   "schemes": [
     "https"
