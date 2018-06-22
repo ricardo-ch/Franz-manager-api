@@ -17,31 +17,54 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicReference;
 
-public enum KafkaConsumerOffsetReader {
-    INSTANCE;
-
+public class KafkaConsumerOffsetReader {
     private static final Logger logger = LoggerFactory.getLogger(KafkaConsumerOffsetReader.class);
 
     private static final String CONSUMER_OFFSET_TOPIC = "__consumer_offsets";
 
     private KafkaStreams streams;
 
-    private HashMap<String, ConsumerOffsetRecord> consumerOffsetRecordArray = new HashMap<>();
+    private HashMap<String, HashMap<String, ConsumerOffsetRecord>> consumerOffsetRecordArray = new HashMap<>();
+
+    private static final AtomicReference<KafkaConsumerOffsetReader> _instance = new AtomicReference<>();
+
+    public static KafkaConsumerOffsetReader getInstance() {
+        KafkaConsumerOffsetReader instance = _instance.get();
+        if(instance == null) {
+            _instance.compareAndSet(null, new KafkaConsumerOffsetReader());
+            instance = _instance.get();
+        }
+        return instance;
+    }
+
+    public static void init(){
+        getInstance();
+    }
 
     private KafkaConsumerOffsetReader() {
-        Logger logger = LoggerFactory.getLogger(KafkaConsumerOffsetReader.class);
+        ConstantsService.clusters.forEach(cluster -> {
+            initStream(cluster.name, cluster.brokersConnectString);
+        });
+    }
+
+    private void initStream(String clusterId, String brokersConnectString) {
         logger.info("Will read topic : " + CONSUMER_OFFSET_TOPIC);
+        logger.info("Connecting to " + brokersConnectString);
+
+        consumerOffsetRecordArray.put(clusterId, new HashMap<>());
 
         final Properties streamsConfiguration = new Properties();
         // Give the Streams application a unique name.  The name must be unique in the Kafka cluster
         // against which the application is run.
         streamsConfiguration.put(StreamsConfig.APPLICATION_ID_CONFIG, KafkaConsumerOffsetReader.class.getName());
         // Where to find Kafka broker(s).
-        streamsConfiguration.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, ConstantsService.brokersList);
+        streamsConfiguration.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, brokersConnectString);
         // Where to find the corresponding ZooKeeper ensemble.
         // Specify default (de)serializers for record keys and for record values.
         streamsConfiguration.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.ByteBuffer().getClass().getName());
@@ -119,7 +142,7 @@ public enum KafkaConsumerOffsetReader {
 
                         String messageKey = consumerOffsetRecord.getGroup() + "." + consumerOffsetRecord.getTopic() + "." + consumerOffsetRecord.getPartition();
 
-                        consumerOffsetRecordArray.put(messageKey, consumerOffsetRecord);
+                        consumerOffsetRecordArray.get(clusterId).put(messageKey, consumerOffsetRecord);
                     }
 
 
@@ -143,8 +166,8 @@ public enum KafkaConsumerOffsetReader {
         logger.info("Exiting constructor");
     }
 
-    public Collection<ConsumerOffsetRecord> getConsumerOffsetRecords() {
-        return this.consumerOffsetRecordArray.values();
+    public Collection<ConsumerOffsetRecord> getConsumerOffsetRecords(String clusterId) {
+        return this.consumerOffsetRecordArray.get(clusterId).values();
     }
 
 }

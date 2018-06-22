@@ -1,10 +1,12 @@
 package com.greencomnetworks.franzmanager.resources;
 
+import com.greencomnetworks.franzmanager.entities.Cluster;
 import com.greencomnetworks.franzmanager.entities.HttpError;
 import com.greencomnetworks.franzmanager.entities.Message;
 import com.greencomnetworks.franzmanager.services.AdminClientService;
 import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.KafkaFuture;
@@ -26,16 +28,23 @@ import java.util.stream.Stream;
 public class MessagesResource {
     private static final Logger logger = LoggerFactory.getLogger(MessagesResource.class);
 
-    private final AdminClient adminClient;
+    private String clusterId;
+    private Cluster cluster;
+    private AdminClient adminClient;
 
-    public MessagesResource() {
-        this.adminClient = AdminClientService.getInstance();
+    public MessagesResource(@HeaderParam("clusterId") String clusterId){
+        this.clusterId = clusterId;
+        this.adminClient = AdminClientService.getAdminClient(this.clusterId);
+        for (Cluster cluster : ConstantsService.clusters) {
+            if(StringUtils.equals(cluster.name, clusterId)){
+                this.cluster = cluster;
+                break;
+            }
+        }
+        if(this.cluster == null){
+            throw new NotFoundException("Cluster not found for id " + clusterId);
+        }
     }
-
-    public MessagesResource(AdminClient adminClient) {
-        this.adminClient = adminClient;
-    }
-
     @GET
     public Object getMessages(@PathParam("topicId") String topicId,
                               @DefaultValue("10") @QueryParam("quantity") Integer quantity,
@@ -49,7 +58,7 @@ public class MessagesResource {
         }
 
         final Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, ConstantsService.brokersList);
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, cluster.brokersConnectString);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "franz-manager-api");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());

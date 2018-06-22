@@ -1,6 +1,7 @@
 package com.greencomnetworks.franzmanager;
 
 import com.greencomnetworks.franzmanager.resources.LiveMessagesResource;
+import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.services.KafkaConsumerOffsetReader;
 import com.greencomnetworks.franzmanager.services.KafkaMetricsService;
 import org.glassfish.grizzly.http.server.*;
@@ -60,9 +61,9 @@ public class FranzManagerApi {
             }
         }, HttpHandlerRegistration.builder().contextPath(apiConfig.basePath + "/apidoc").urlPattern("/").build());
 
-
-        KafkaConsumerOffsetReader kafkaConsumerOffsetReader = KafkaConsumerOffsetReader.INSTANCE;
-        KafkaMetricsService kafkaMetricsService = new KafkaMetricsService();
+        ConstantsService.init();
+        KafkaConsumerOffsetReader.init();
+        KafkaMetricsService.init();
 
         server.start();
 

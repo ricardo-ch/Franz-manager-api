@@ -1,7 +1,12 @@
 package com.greencomnetworks.franzmanager.resources;
 
+import com.greencomnetworks.franzmanager.entities.Cluster;
 import com.greencomnetworks.franzmanager.entities.ConsumerOffsetRecord;
+import com.greencomnetworks.franzmanager.services.AdminClientService;
+import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.services.KafkaConsumerOffsetReader;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.kafka.clients.admin.AdminClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,9 +22,15 @@ import java.util.Collection;
 public class ConsumerResource {
     private static final Logger log = LoggerFactory.getLogger(ConsumerResource.class);
 
+    String clusterId;
+
+    public ConsumerResource(@HeaderParam("clusterId") String clusterId){
+        this.clusterId = clusterId;
+    }
+
     @GET
     public Collection<ConsumerOffsetRecord> get(@QueryParam("group") String group, @QueryParam("topic") String topic){
-        Collection<ConsumerOffsetRecord> result = KafkaConsumerOffsetReader.INSTANCE.getConsumerOffsetRecords();
+        Collection<ConsumerOffsetRecord> result = KafkaConsumerOffsetReader.getInstance().getConsumerOffsetRecords(clusterId);
 
         if(null != group){
             result = filterByGroup(result, group);

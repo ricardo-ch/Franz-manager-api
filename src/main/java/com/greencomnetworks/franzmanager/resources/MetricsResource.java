@@ -1,12 +1,17 @@
 package com.greencomnetworks.franzmanager.resources;
 
+import com.greencomnetworks.franzmanager.entities.Cluster;
 import com.greencomnetworks.franzmanager.entities.ConsumerOffsetRecord;
 import com.greencomnetworks.franzmanager.entities.HttpError;
 import com.greencomnetworks.franzmanager.entities.Metric;
+import com.greencomnetworks.franzmanager.services.AdminClientService;
+import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.services.KafkaConsumerOffsetReader;
 import com.greencomnetworks.franzmanager.services.KafkaMetricsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
+import org.apache.kafka.clients.admin.AdminClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +27,13 @@ import java.util.*;
 @Produces(MediaType.APPLICATION_JSON)
 public class MetricsResource {
     private static final Logger logger = LoggerFactory.getLogger(MetricsResource.class);
+
+    private HashMap<String, MBeanServerConnection> mBeanServerConnections;
+
+    public MetricsResource(@HeaderParam("clusterId") String clusterId) {
+        this.mBeanServerConnections = KafkaMetricsService.getMBeanServerConnections(clusterId);
+
+    }
 
     @GET
     public Object get(@QueryParam("metricType") String metricType, @QueryParam("metricName") String metricName, @QueryParam("topic") String topic) throws IOException, AttributeNotFoundException, MBeanException, ReflectionException, InstanceNotFoundException, MalformedObjectNameException {
@@ -42,7 +54,7 @@ public class MetricsResource {
         ObjectName objName = new ObjectName(queryString);
         Metric metric = new Metric(metricType, metricName, topic, new HashMap<>());
 
-        for (MBeanServerConnection mbsc : KafkaMetricsService.mBeanServerConnections.values()) {
+        for (MBeanServerConnection mbsc : mBeanServerConnections.values()) {
             try {
                 MBeanInfo beanInfo = mbsc.getMBeanInfo(objName);
                 for (MBeanAttributeInfo attr : beanInfo.getAttributes()) {
@@ -58,7 +70,7 @@ public class MetricsResource {
             } catch (IntrospectionException e) {
                 // that means a jmx server is not available
                 logger.warn("A jmx server cannot be reached : {}", e.getMessage());
-            } catch (InstanceNotFoundException e){
+            } catch (InstanceNotFoundException e) {
                 logger.warn("Cannot retrieved this metric {{}}, maybe your kafka need to be upgraded.", queryString);
             }
         }

@@ -1,8 +1,10 @@
 package com.greencomnetworks.franzmanager.resources;
 
 import com.google.gson.Gson;
+import com.greencomnetworks.franzmanager.entities.Cluster;
 import com.greencomnetworks.franzmanager.entities.Message;
 import com.greencomnetworks.franzmanager.services.ConstantsService;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -15,6 +17,7 @@ import org.glassfish.grizzly.websockets.WebSocketApplication;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.ws.rs.NotFoundException;
 import java.util.*;
 
 public class LiveMessagesResource extends WebSocketApplication {
@@ -31,9 +34,9 @@ public class LiveMessagesResource extends WebSocketApplication {
     @Override
     public void onMessage(WebSocket socket, String data) {
         String action = data.split(":")[0];
-        switch(action){
+        switch (action) {
             case "subscribe":
-                this.newSocketConsumer(socket, data.split(":")[1]);
+                this.newSocketConsumer(socket, data.split(":")[1], data.split(":")[2]);
                 break;
             case "close":
                 socket.close();
@@ -64,8 +67,8 @@ public class LiveMessagesResource extends WebSocketApplication {
         logger.info("websocket closed, consumer " + franzConsumerRunnable.id + " closed.");
     }
 
-    private void newSocketConsumer(WebSocket socket, String topic){
-        FranzConsumer franzConsumerRunnable = new FranzConsumer("franz-manager-api", topic, socket);
+    private void newSocketConsumer(WebSocket socket, String topic, String clusterId) {
+        FranzConsumer franzConsumerRunnable = new FranzConsumer("franz-manager-api", topic, socket, clusterId);
         Thread franzConsumerThread = new Thread(franzConsumerRunnable);
         franzConsumerThread.start();
         socketThreadMap.put(socket, franzConsumerThread);
@@ -80,12 +83,23 @@ public class LiveMessagesResource extends WebSocketApplication {
 
         private FranzConsumer(String groupId,
                               String topic,
-                              WebSocket socket) {
+                              WebSocket socket,
+                              String clusterId) {
             this.id = UUID.randomUUID().toString();
             this.topic = topic;
             this.socket = socket;
             final Properties props = new Properties();
-            props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, ConstantsService.brokersList);
+            Cluster cluster = null;
+            for (Cluster c : ConstantsService.clusters) {
+                if (StringUtils.equals(c.name, clusterId)) {
+                    cluster = c;
+                    break;
+                }
+            }
+            if (cluster == null) {
+                throw new NotFoundException("Cluster not found for the id " + clusterId);
+            }
+            props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, cluster.brokersConnectString);
             props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
             props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
             props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
@@ -106,7 +120,7 @@ public class LiveMessagesResource extends WebSocketApplication {
                         Message message = new Message(record.value(), record.key(), record.partition(), record.offset(), record.timestamp());
                         messages.add(message);
                     }
-                    if(messages.size() > 0){
+                    if (messages.size() > 0) {
                         logger.info("{}: consumed {} message(s)", this.id, String.valueOf(messages.size()));
                         this.socket.send(g.toJson(messages));
                         Thread.sleep(1000);
