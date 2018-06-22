@@ -18,17 +18,17 @@ import java.util.HashMap;
 
 public class KafkaMetricsService {
     private static final Logger logger = LoggerFactory.getLogger(KafkaMetricsService.class);
-    public static HashMap<String, MBeanServerConnection> mBeanServerConnections = new HashMap<>();
+    private static HashMap<String, HashMap<String, MBeanServerConnection>> mBeanServerConnections = new HashMap<>();
 
-    public KafkaMetricsService() {
-        for (String url : ConstantsService.brokersJmxUrl) {
-            boolean connected = false;
-            while (!connected) {
+    public static void init(){
+        ConstantsService.clusters.forEach(cluster -> {
+            mBeanServerConnections.put(cluster.name, new HashMap<>());
+
+            for (String url : cluster.jmxConnectString.split(",")) {
                 try {
                     JMXServiceURL jmxUrl = new JMXServiceURL("service:jmx:rmi:///jndi/rmi://" + url + "/jmxrmi");
                     JMXConnector jmxc = JMXConnectorFactory.connect(jmxUrl, null);
-                    mBeanServerConnections.put(url.split(":")[0], jmxc.getMBeanServerConnection());
-                    connected = true;
+                    mBeanServerConnections.get(cluster.name).put(url.split(":")[0], jmxc.getMBeanServerConnection());
                 } catch (MalformedURLException e) {
                     throw new RuntimeException("The following url has a bad format : " + url, e);
                 } catch (IOException e) {
@@ -40,6 +40,13 @@ public class KafkaMetricsService {
                     }
                 }
             }
+        });
+    }
+
+    public static HashMap<String, MBeanServerConnection> getMBeanServerConnections(String clusterId){
+        if(clusterId == null){
+            clusterId = "Default";
         }
+        return mBeanServerConnections.get(clusterId);
     }
 }

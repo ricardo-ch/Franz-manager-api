@@ -1,12 +1,10 @@
 package com.greencomnetworks.franzmanager.resources;
 
-import com.greencomnetworks.franzmanager.entities.Broker;
-import com.greencomnetworks.franzmanager.entities.HttpError;
-import com.greencomnetworks.franzmanager.entities.Partition;
-import com.greencomnetworks.franzmanager.entities.Topic;
+import com.greencomnetworks.franzmanager.entities.*;
 import com.greencomnetworks.franzmanager.services.AdminClientService;
 import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.KafkaFuture;
@@ -34,14 +32,22 @@ import java.util.stream.Stream;
 public class TopicsResource {
     private static final Logger logger = LoggerFactory.getLogger(TopicsResource.class);
 
-    private final AdminClient adminClient;
+    String clusterId;
+    Cluster cluster;
+    AdminClient adminClient;
 
-    public TopicsResource() {
-        this.adminClient = AdminClientService.getInstance();
-    }
-
-    public TopicsResource(AdminClient adminClient) {
-        this.adminClient = adminClient;
+    public TopicsResource(@HeaderParam("clusterId") String clusterId){
+        this.clusterId = clusterId;
+        this.adminClient = AdminClientService.getAdminClient(this.clusterId);
+        for (Cluster cluster : ConstantsService.clusters) {
+            if(StringUtils.equals(cluster.name, clusterId)){
+                this.cluster = cluster;
+                break;
+            }
+        }
+        if(this.cluster == null){
+            throw new NotFoundException("Cluster not found for id " + clusterId);
+        }
     }
 
     @GET
@@ -96,7 +102,7 @@ public class TopicsResource {
                     .build();
         }
 
-        BrokersResource brokersResource = new BrokersResource();
+        BrokersResource brokersResource = new BrokersResource(clusterId);
         Broker clusterConfig = brokersResource.getBrokers().get(0);
 
         int partitions = topic.partitions != null ? topic.partitions : Integer.parseInt(clusterConfig.configurations.get("num.partitions"));
@@ -173,7 +179,7 @@ public class TopicsResource {
     @Path("/{topicId}/partitions")
     public List<Partition> getTopicPartitions(@PathParam("topicId") String topicId) {
         Properties config = new Properties();
-        config.put("bootstrap.servers", ConstantsService.brokersList);
+        config.put("bootstrap.servers", cluster.brokersConnectString);
         KafkaConsumer<ByteBuffer, ByteBuffer> consumer = new KafkaConsumer<>(config, Serdes.ByteBuffer().deserializer(), Serdes.ByteBuffer().deserializer());
         try {
             List<TopicPartition> topicPartitions = consumer.partitionsFor(topicId).stream()
@@ -201,7 +207,7 @@ public class TopicsResource {
     @Path("/{topicId}/partitions")
     public List<Partition> postTopicPartitions(@PathParam("topicId") String topicId, @QueryParam("quantity") Integer quantity) {
         Properties config = new Properties();
-        config.put("bootstrap.servers", ConstantsService.brokersList);
+        config.put("bootstrap.servers", cluster.brokersConnectString);
         KafkaConsumer<ByteBuffer, ByteBuffer> consumer = new KafkaConsumer<>(config, Serdes.ByteBuffer().deserializer(), Serdes.ByteBuffer().deserializer());
         try {
             List<PartitionInfo> partitionInfos = consumer.partitionsFor(topicId);

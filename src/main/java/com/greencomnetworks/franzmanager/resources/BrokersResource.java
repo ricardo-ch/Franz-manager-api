@@ -1,10 +1,13 @@
 package com.greencomnetworks.franzmanager.resources;
 
 import com.greencomnetworks.franzmanager.entities.Broker;
+import com.greencomnetworks.franzmanager.entities.Cluster;
 import com.greencomnetworks.franzmanager.entities.HttpError;
 import com.greencomnetworks.franzmanager.services.AdminClientService;
+import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.services.KafkaMetricsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.common.Node;
@@ -29,14 +32,24 @@ import java.util.stream.Stream;
 public class BrokersResource {
     private static final Logger logger = LoggerFactory.getLogger(BrokersResource.class);
 
-    private final AdminClient adminClient;
+    private String clusterId;
+    private Cluster cluster;
+    private AdminClient adminClient;
+    private HashMap<String, MBeanServerConnection> mBeanServerConnections;
 
-    public BrokersResource() {
-        this.adminClient = AdminClientService.getInstance();
-    }
-
-    public BrokersResource(AdminClient adminClient) {
-        this.adminClient = adminClient;
+    public BrokersResource(@HeaderParam("clusterId") String clusterId){
+        this.clusterId = clusterId == null ? "Default" : clusterId;
+        this.adminClient = AdminClientService.getAdminClient(this.clusterId);
+        this.mBeanServerConnections = KafkaMetricsService.getMBeanServerConnections(clusterId);
+        for (Cluster cluster : ConstantsService.clusters) {
+            if(StringUtils.equals(cluster.name, clusterId)){
+                this.cluster = cluster;
+                break;
+            }
+        }
+        if(this.cluster == null){
+            throw new NotFoundException("Cluster not found for id " + clusterId);
+        }
     }
 
     @GET
@@ -59,7 +72,7 @@ public class BrokersResource {
                 Float bytesOut = null;
 
                 try {
-                    MBeanServerConnection mbsc = KafkaMetricsService.mBeanServerConnections.get(cluster.host());
+                    MBeanServerConnection mbsc = mBeanServerConnections.get(cluster.host());
                     bytesIn = Float.valueOf(mbsc.getAttribute(new ObjectName("kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec"), "OneMinuteRate").toString());
                     bytesOut = Float.valueOf(mbsc.getAttribute(new ObjectName("kafka.server:type=BrokerTopicMetrics,name=BytesOutPerSec"), "OneMinuteRate").toString());
                 } catch (Exception e) {
@@ -99,7 +112,7 @@ public class BrokersResource {
             Float bytesOut = null;
 
             try {
-                MBeanServerConnection mbsc = KafkaMetricsService.mBeanServerConnections.get(node.host());
+                MBeanServerConnection mbsc = mBeanServerConnections.get(node.host());
                 bytesIn = Float.valueOf(mbsc.getAttribute(new ObjectName("kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec"), "OneMinuteRate").toString());
                 bytesOut = Float.valueOf(mbsc.getAttribute(new ObjectName("kafka.server:type=BrokerTopicMetrics,name=BytesOutPerSec"), "OneMinuteRate").toString());
             } catch (Exception e) {
