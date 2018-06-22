@@ -7,13 +7,15 @@ This api should work with the front-end franz-manager --> [here](https://github.
 
 #### Mandatory env var
 
+###### Deprecated (before commit cd17843b82611864f7cd24693f399ce47f78a64b
+
 The api needs 2 environment variables to work :
 
 * `KAFKA_BROKERS` (ie -> '127.0.0.2:2181,127.0.0.3:2181,127.0.0.4:2181')
 
 * `KAFKA_BROKERS_JMX` (ie -> '127.0.0.2:9997,127.0.0.3:9997,127.0.0.4:9997')
 
-##### /!\ Breaking change (commit cd17843b82611864f7cd24693f399ce47f78a64b)
+###### /!\ Breaking change (commit cd17843b82611864f7cd24693f399ce47f78a64b)
 
 Franz-manager now support multiple clusters, the 2 previous environments variable are not used anymore.
 You need to set this one:
