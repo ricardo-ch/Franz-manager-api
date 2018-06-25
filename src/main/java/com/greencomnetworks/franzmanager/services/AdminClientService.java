@@ -2,6 +2,7 @@ package com.greencomnetworks.franzmanager.services;
 
 import com.greencomnetworks.franzmanager.entities.Cluster;
 import com.greencomnetworks.franzmanager.utils.FUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.KafkaAdminClient;
@@ -18,6 +19,8 @@ public class AdminClientService {
     static public AdminClient getAdminClient(String name) {
         if (name == null) {
             return adminClients.get("Default");
+        } else if (StringUtils.equals(name, "Default") && adminClients.get(name) == null) {
+            return adminClients.entrySet().iterator().next().getValue();
         }
         return adminClients.get(name);
     }
