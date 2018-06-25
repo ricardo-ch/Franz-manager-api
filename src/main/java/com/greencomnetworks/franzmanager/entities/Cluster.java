@@ -5,7 +5,8 @@ public class Cluster {
     public String brokersConnectString;
     public String jmxConnectString;
 
-    public Cluster(){}
+    public Cluster() {
+    }
 
     public Cluster(String name, String brokersConnectString, String jmxConnectString) {
         this.name = name;
@@ -15,6 +16,6 @@ public class Cluster {
 
     @Override
     public String toString() {
-        return "Cluster: " + this.name;
+        return "Cluster " + name + "\n" + "connectString:" + brokersConnectString + "\njmxConnectString: " + jmxConnectString;
     }
 }
