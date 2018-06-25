@@ -17,14 +17,14 @@ The api needs 2 environment variables to work :
 
 ###### /!\ Breaking change (commit cd17843b82611864f7cd24693f399ce47f78a64b)
 
-Franz-manager now support multiple clusters, the 2 previous environments variable are not used anymore.
+Franz-manager now supports multiple clusters, the 2 previous environment variables are not used anymore.
 You need to set this one:
 
 * `KAFKA_CONF` = \[{"name": "cluster 1", "brokersConnectString": "127.0.0.2:2181,127.0.0.3:2181,127.0.0.4:2181", "jmxConnectString": "127.0.0.2:9997,127.0.0.3:9997,127.0.0.4:9997"}]
 
 #### Not mandatory
 
-You might also be interested to defined the following configuration :
+You might also be interested in defining the following configuration :
 
 * `JVM_HEAP_SIZE` (ie -> 512)
 
