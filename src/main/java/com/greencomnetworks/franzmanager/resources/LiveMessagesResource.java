@@ -4,11 +4,13 @@ import com.google.gson.Gson;
 import com.greencomnetworks.franzmanager.entities.Cluster;
 import com.greencomnetworks.franzmanager.entities.Message;
 import com.greencomnetworks.franzmanager.services.ConstantsService;
+import com.greencomnetworks.franzmanager.utils.KafkaUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.glassfish.grizzly.websockets.DataFrame;
@@ -111,7 +113,9 @@ public class LiveMessagesResource extends WebSocketApplication {
         public void run() {
             try {
                 Gson g = new Gson();
-                consumer.subscribe(Collections.singletonList(this.topic));
+                List<TopicPartition> topicPartitions = KafkaUtils.topicPartitionsOf(consumer, this.topic);
+                consumer.assign(topicPartitions);
+                consumer.seekToEnd(topicPartitions);
 
                 while (true) {
                     ConsumerRecords<String, String> records = consumer.poll(1000);
