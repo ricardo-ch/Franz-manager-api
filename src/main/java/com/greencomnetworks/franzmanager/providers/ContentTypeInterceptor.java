@@ -18,8 +18,6 @@ public class ContentTypeInterceptor implements ReaderInterceptor {
 
     @Override
     public Object aroundReadFrom(ReaderInterceptorContext context) throws IOException, WebApplicationException {
-        MediaType mediaType = context.getMediaType();
-
         if(context.getHeaders().get("Content-Type") == null) {
             context.setMediaType(MediaType.APPLICATION_JSON_TYPE);
         }

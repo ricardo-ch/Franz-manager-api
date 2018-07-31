@@ -2,27 +2,28 @@ package com.greencomnetworks.franzmanager.resources;
 
 import com.greencomnetworks.franzmanager.entities.Broker;
 import com.greencomnetworks.franzmanager.entities.Cluster;
-import com.greencomnetworks.franzmanager.entities.HttpError;
 import com.greencomnetworks.franzmanager.services.AdminClientService;
 import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.services.KafkaMetricsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.math.NumberUtils;
-import org.apache.kafka.clients.admin.*;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.Config;
+import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.config.ConfigResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.management.*;
+import javax.management.MBeanServerConnection;
+import javax.management.ObjectName;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import java.io.IOException;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -94,9 +95,7 @@ public class BrokersResource {
             Node node = FUtils.getOrElse(() -> brokers.stream().filter(n -> n.idString().equals(brokerId)).collect(Collectors.toList()).get(0), null);
 
             if (node == null) {
-                return Response.status(Response.Status.NOT_FOUND.getStatusCode())
-                        .entity(new HttpError(Response.Status.NOT_FOUND.getStatusCode(), "This cluster (" + brokerId + ") doesn't exist."))
-                        .build();
+                throw new NotFoundException("This cluster (" + brokerId + ") doesn't exist.");
             }
 
             Collection<ConfigResource> configResource = Stream.of(new ConfigResource(ConfigResource.Type.BROKER, brokerId)).collect(Collectors.toSet());

@@ -1,14 +1,8 @@
 package com.greencomnetworks.franzmanager.entities;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.greencomnetworks.franzmanager.services.ZonedDateTimeConverter;
-
 import java.time.ZonedDateTime;
 
 public class ConsumerOffsetRecord {
-    private static Gson gson = new GsonBuilder().serializeNulls().registerTypeAdapter(ZonedDateTime.class, new ZonedDateTimeConverter()).create();
-
     private String group;
     private String topic;
     private Integer partition;
@@ -62,8 +56,4 @@ public class ConsumerOffsetRecord {
     public void setExpireTimestamp(ZonedDateTime expireTimestamp) {
         this.expireTimestamp = expireTimestamp;
     }
-    public String toString(){
-        return gson.toJson(this);
-    }
-
 }

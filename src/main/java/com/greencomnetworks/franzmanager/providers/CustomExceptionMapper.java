@@ -1,14 +1,19 @@
 package com.greencomnetworks.franzmanager.providers;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.greencomnetworks.franzmanager.utils.FUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.glassfish.jersey.server.ParamException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.ws.rs.*;
+import javax.ws.rs.ClientErrorException;
+import javax.ws.rs.ServerErrorException;
+import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.container.PreMatching;
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
@@ -17,7 +22,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- *
+ * Generic exception Mapper with proper formatting
  */
 @Provider
 @PreMatching
@@ -28,23 +33,38 @@ public class CustomExceptionMapper implements ExceptionMapper<Exception> {
     public Response toResponse(Exception e) {
         // We are matching every exception. It might be better to use a matcher for each exception?
 
+        if(e instanceof JsonParseException || e instanceof JsonMappingException) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .type(MediaType.APPLICATION_JSON_TYPE)
+                    .entity(new LogExceptionEntity(400, e.getMessage(), e.getStackTrace()))
+                    .build();
+        }
+
         if(e instanceof ClientErrorException) {
             ClientErrorException cee = (ClientErrorException) e;
             logger.info("Client error: {}", cee.getMessage());
-            return Response.status(cee.getResponse().getStatus()).entity(new LogExceptionEntity(cee)).build();
+            return Response.status(cee.getResponse().getStatus())
+                    .type(MediaType.APPLICATION_JSON_TYPE)
+                    .entity(new LogExceptionEntity(cee))
+                    .build();
         }
 
         if(e instanceof ServerErrorException) {
             ServerErrorException see = (ServerErrorException) e;
             logger.error("Server error: {}", see.getMessage(), see);
-            return Response.status(see.getResponse().getStatus()).entity(new LogExceptionEntity(see)).build();
+            return Response.status(see.getResponse().getStatus())
+                    .type(MediaType.APPLICATION_JSON_TYPE)
+                    .entity(new LogExceptionEntity(see))
+                    .build();
         }
 
         if(e instanceof ParamException) {
             Throwable cause = e.getCause();
             if(cause == null) cause = e;
             return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new LogExceptionEntity(Response.Status.BAD_REQUEST.getStatusCode(), cause.getMessage(), cause.getStackTrace())).build();
+                    .type(MediaType.APPLICATION_JSON_TYPE)
+                    .entity(new LogExceptionEntity(Response.Status.BAD_REQUEST.getStatusCode(), cause.getMessage(), cause.getStackTrace()))
+                    .build();
         }
 
         logger.error("Internal Server Error: {}", e.toString(), e);

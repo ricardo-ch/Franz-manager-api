@@ -1,13 +1,6 @@
 package com.greencomnetworks.franzmanager.entities;
-import java.time.ZonedDateTime;
-
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.greencomnetworks.franzmanager.services.ZonedDateTimeConverter;
 
 public class Partition {
-    private static Gson gson = new GsonBuilder().serializeNulls().registerTypeAdapter(ZonedDateTime.class, new ZonedDateTimeConverter()).create();
-
     private String topic;
     private int partition;
     private long beginningOffset;
@@ -83,9 +76,5 @@ public class Partition {
     }
     public void setBeginningOffset(long beginningOffset) {
         this.beginningOffset = beginningOffset;
-    }
-
-    public String toString(){
-        return gson.toJson(this);
     }
 }
