@@ -26,9 +26,9 @@ public class Topic {
         this.configurations = configurations;
     }
 
-    public Topic(@JsonProperty(value="id", required=true) String id,
-                 @JsonProperty("partitions") Integer partitions,
-                 @JsonProperty("replication") Integer replications) {
+    public Topic(String id,
+                 Integer partitions,
+                 Integer replications) {
         this.id = id;
         this.partitions = partitions;
         this.replications = replications;

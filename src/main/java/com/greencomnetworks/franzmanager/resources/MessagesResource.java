@@ -1,14 +1,17 @@
 package com.greencomnetworks.franzmanager.resources;
 
 import com.greencomnetworks.franzmanager.entities.Cluster;
-import com.greencomnetworks.franzmanager.entities.HttpError;
 import com.greencomnetworks.franzmanager.entities.Message;
 import com.greencomnetworks.franzmanager.services.AdminClientService;
 import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.kafka.clients.admin.*;
-import org.apache.kafka.clients.consumer.*;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.TopicDescription;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -17,7 +20,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
+import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -52,9 +55,7 @@ public class MessagesResource {
         KafkaFuture<Map<String, TopicDescription>> describedTopicsFuture = adminClient.describeTopics(Stream.of(topicId).collect(Collectors.toSet())).all();
         Map<String, TopicDescription> describedTopics = FUtils.getOrElse(() -> describedTopicsFuture.get(), null);
         if (describedTopics == null) {
-            return Response.status(Response.Status.NOT_FOUND)
-                    .entity(new HttpError(Response.Status.NOT_FOUND.getStatusCode(), "This topic (" + topicId + ") doesn't exist."))
-                    .build();
+            throw new NotFoundException("This topic (" + topicId + ") doesn't exist.");
         }
 
         final Properties props = new Properties();
@@ -82,7 +83,7 @@ public class MessagesResource {
                     if (offsetAndTimestamp != null) {
                         beginningOffsetsCopy.put(topicPartition, offsetAndTimestamp.offset());
                     } else {
-                        beginningOffsetsCopy.put(topicPartition, new Long(0));
+                        beginningOffsetsCopy.put(topicPartition, 0L);
                     }
                 });
 
@@ -109,7 +110,7 @@ public class MessagesResource {
             final int giveUp = 5;
             int noRecordsCount = 0;
             while (true) {
-                final ConsumerRecords<String, String> consumerRecords = consumer.poll(100);
+                final ConsumerRecords<String, String> consumerRecords = consumer.poll(Duration.ofMillis(100));
                 if (consumerRecords.count() == 0) {
                     noRecordsCount++;
                     if (noRecordsCount > giveUp) break;
@@ -117,7 +118,7 @@ public class MessagesResource {
                     consumerRecords.forEach(record -> {
                         messages.add(new Message(record.value(), record.key(), record.partition(), record.offset(), record.timestamp()));
                     });
-                    if (from == null && messages.size() == topicPartitions.size() * quantity) break;
+                    if (from == null && messages.size() >= topicPartitions.size() * quantity) break;
                 }
             }
 

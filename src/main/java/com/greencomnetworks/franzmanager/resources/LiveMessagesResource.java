@@ -1,9 +1,11 @@
 package com.greencomnetworks.franzmanager.resources;
 
-import com.google.gson.Gson;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.greencomnetworks.franzmanager.entities.Cluster;
 import com.greencomnetworks.franzmanager.entities.Message;
 import com.greencomnetworks.franzmanager.services.ConstantsService;
+import com.greencomnetworks.franzmanager.utils.CustomObjectMapper;
 import com.greencomnetworks.franzmanager.utils.KafkaUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -20,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.NotFoundException;
+import java.time.Duration;
 import java.util.*;
 
 public class LiveMessagesResource extends WebSocketApplication {
@@ -112,13 +115,13 @@ public class LiveMessagesResource extends WebSocketApplication {
         @Override
         public void run() {
             try {
-                Gson g = new Gson();
+                ObjectMapper objectMapper = CustomObjectMapper.defaultInstance();
                 List<TopicPartition> topicPartitions = KafkaUtils.topicPartitionsOf(consumer, this.topic);
                 consumer.assign(topicPartitions);
                 consumer.seekToEnd(topicPartitions);
 
                 while (true) {
-                    ConsumerRecords<String, String> records = consumer.poll(1000);
+                    ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
                     ArrayList<Message> messages = new ArrayList<>();
                     for (ConsumerRecord<String, String> record : records) {
                         Message message = new Message(record.value(), record.key(), record.partition(), record.offset(), record.timestamp());
@@ -126,7 +129,12 @@ public class LiveMessagesResource extends WebSocketApplication {
                     }
                     if (messages.size() > 0) {
                         logger.info("{}: consumed {} message(s)", this.id, String.valueOf(messages.size()));
-                        this.socket.send(g.toJson(messages));
+                        try {
+                            String s = objectMapper.writeValueAsString(messages);
+                            this.socket.send(s);
+                        } catch (JsonProcessingException e) {
+                            logger.error("Unable to serializer messages: {}", e.getMessage(), e);
+                        }
                         Thread.sleep(1000);
                     }
                 }

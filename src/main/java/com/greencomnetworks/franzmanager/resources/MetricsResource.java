@@ -1,17 +1,10 @@
 package com.greencomnetworks.franzmanager.resources;
 
-import com.greencomnetworks.franzmanager.entities.Cluster;
-import com.greencomnetworks.franzmanager.entities.ConsumerOffsetRecord;
-import com.greencomnetworks.franzmanager.entities.HttpError;
 import com.greencomnetworks.franzmanager.entities.Metric;
-import com.greencomnetworks.franzmanager.services.AdminClientService;
-import com.greencomnetworks.franzmanager.services.ConstantsService;
-import com.greencomnetworks.franzmanager.services.KafkaConsumerOffsetReader;
 import com.greencomnetworks.franzmanager.services.KafkaMetricsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
-import org.apache.kafka.clients.admin.AdminClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,7 +12,7 @@ import javax.management.*;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
 
 
 @Path("/metrics")
@@ -36,11 +29,11 @@ public class MetricsResource {
     }
 
     @GET
-    public Object get(@QueryParam("metricType") String metricType, @QueryParam("metricName") String metricName, @QueryParam("topic") String topic) throws IOException, AttributeNotFoundException, MBeanException, ReflectionException, InstanceNotFoundException, MalformedObjectNameException {
-        if (metricName == null) {
-            return new HttpError(400, "Missing query parameter 'metricName'");
-        } else if (metricType == null) {
-            return new HttpError(400, "Missing query parameter 'metricType'");
+    public Metric get(@QueryParam("metricType") String metricType, @QueryParam("metricName") String metricName, @QueryParam("topic") String topic) throws IOException, AttributeNotFoundException, MBeanException, ReflectionException, InstanceNotFoundException, MalformedObjectNameException {
+        if (StringUtils.isEmpty(metricName)) {
+            throw new BadRequestException("Missing query parameter 'metricName'");
+        } else if (StringUtils.isEmpty(metricType)) {
+            throw new BadRequestException("Missing query parameter 'metricType'");
         }
 
         String queryString = "kafka.server:";

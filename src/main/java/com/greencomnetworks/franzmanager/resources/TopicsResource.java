@@ -1,6 +1,10 @@
 package com.greencomnetworks.franzmanager.resources;
 
-import com.greencomnetworks.franzmanager.entities.*;
+import com.greencomnetworks.franzmanager.core.ConflictException;
+import com.greencomnetworks.franzmanager.entities.Broker;
+import com.greencomnetworks.franzmanager.entities.Cluster;
+import com.greencomnetworks.franzmanager.entities.Partition;
+import com.greencomnetworks.franzmanager.entities.Topic;
 import com.greencomnetworks.franzmanager.services.AdminClientService;
 import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
@@ -22,7 +26,6 @@ import javax.ws.rs.core.Response;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -77,13 +80,13 @@ public class TopicsResource {
                         String topicName = entry.getKey().name();
                         TopicDescription describedTopic = describedTopics.get(topicName);
 
-                        Map<String, String> configurations = entry.getValue().entries().stream()
-                                .collect(Collectors.toMap(
-                                        ConfigEntry::name,
-                                        ConfigEntry::value
-                                ));
-                        if (shortVersion) {
-                            return new Topic(topicName, describedTopic.partitions().size(), describedTopic.partitions().get(0).replicas().size());
+                        Map<String, String> configurations = null;
+                        if(!shortVersion) {
+                            configurations = entry.getValue().entries().stream()
+                                    .collect(Collectors.toMap(
+                                            ConfigEntry::name,
+                                            ConfigEntry::value
+                                    ));
                         }
                         return new Topic(topicName, describedTopic.partitions().size(), describedTopic.partitions().get(0).replicas().size(), configurations);
                     }).collect(Collectors.toList());
@@ -97,9 +100,7 @@ public class TopicsResource {
     @POST
     public Response createTopic(Topic topic) {
         if (topicExist(topic.id)) {
-            return Response.status(Response.Status.CONFLICT)
-                    .entity(new HttpError(Response.Status.CONFLICT.getStatusCode(), "This topic (" + topic.id + ") already exist."))
-                    .build();
+            throw new ConflictException("This topic (" + topic.id + ") already exist.");
         }
 
         BrokersResource brokersResource = new BrokersResource(clusterId);
@@ -130,9 +131,7 @@ public class TopicsResource {
         Map<ConfigResource, Config> describedConfigs = FUtils.getOrElse(() -> describedConfigsFuture.get(), null);
 
         if (describedConfigs == null || describedTopics == null) {
-            return Response.status(Response.Status.NOT_FOUND)
-                    .entity(new HttpError(Response.Status.NOT_FOUND.getStatusCode(), "This topic (" + topicId + ") doesn't exist."))
-                    .build();
+            throw new NotFoundException("This topic (" + topicId + ") doesn't exist.");
         }
 
         Map<String, String> configurations = describedConfigs.values().stream().findFirst().get().entries().stream().collect(Collectors.toMap(
@@ -152,7 +151,7 @@ public class TopicsResource {
         List<ConfigEntry> configEntries = configurations.entrySet().stream().map(entry -> new ConfigEntry(entry.getKey(), entry.getValue())).collect(Collectors.toList());
         configs.put(configResource, new Config(configEntries));
         adminClient.alterConfigs(configs);
-        return null;
+        return null; // TODO: send proper response
     }
 
     @DELETE
@@ -160,16 +159,13 @@ public class TopicsResource {
     public Response deleteTopic(@PathParam("topicId") String topicId) {
         try {
             if (!topicExist(topicId)) {
-                return Response.status(Response.Status.CONFLICT)
-                        .entity(new HttpError(Response.Status.NOT_FOUND.getStatusCode(), "This topic (" + topicId + ") doesn't exist."))
-                        .build();
+                throw new NotFoundException("This topic (" + topicId + ") doesn't exist.");
             }
 
             Collection<String> topics = FUtils.Set.of(topicId);
             adminClient.deleteTopics(topics).all().get();
 
-            return Response.status(Response.Status.OK)
-                    .build();
+            return Response.ok().build();
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
         }
@@ -218,7 +214,7 @@ public class TopicsResource {
         } finally {
             consumer.close();
         }
-        return null;
+        return null; // TODO: send proper response
     }
 
     private boolean topicExist(String id) {

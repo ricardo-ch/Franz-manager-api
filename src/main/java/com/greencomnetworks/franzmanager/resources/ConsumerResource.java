@@ -1,12 +1,7 @@
 package com.greencomnetworks.franzmanager.resources;
 
-import com.greencomnetworks.franzmanager.entities.Cluster;
 import com.greencomnetworks.franzmanager.entities.ConsumerOffsetRecord;
-import com.greencomnetworks.franzmanager.services.AdminClientService;
-import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.services.KafkaConsumerOffsetReader;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.kafka.clients.admin.AdminClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +39,7 @@ public class ConsumerResource {
 
     private Collection<ConsumerOffsetRecord> filterByGroup(Collection<ConsumerOffsetRecord> consumerOffsetRecords, String group){
         log.info("filterByGroup: size is " + consumerOffsetRecords.size());
+
         Collection<ConsumerOffsetRecord> result = new ArrayList<>();
 
         for(ConsumerOffsetRecord record : consumerOffsetRecords){
