@@ -2,9 +2,6 @@ package com.greencomnetworks.franzmanager;
 
 import com.greencomnetworks.franzmanager.utils.configs.ConfigUtils;
 import com.greencomnetworks.franzmanager.utils.configs.SafePropertiesConfiguration;
-import org.apache.commons.configuration2.PropertiesConfiguration;
-import org.apache.commons.configuration2.builder.fluent.Configurations;
-import org.apache.commons.configuration2.ex.ConfigurationException;
 
 public class FranzManagerApiConfig {
     public final String projectId;

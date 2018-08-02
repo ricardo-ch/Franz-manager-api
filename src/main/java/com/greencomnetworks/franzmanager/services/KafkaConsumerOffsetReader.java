@@ -27,8 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collector;
-import java.util.stream.Collectors;
 
 public class KafkaConsumerOffsetReader {
     private static final Logger logger = LoggerFactory.getLogger(KafkaConsumerOffsetReader.class);
