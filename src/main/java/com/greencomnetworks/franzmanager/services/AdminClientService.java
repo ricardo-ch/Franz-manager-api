@@ -18,10 +18,11 @@ public class AdminClientService {
     }
 
     static public AdminClient getAdminClient(String name) {
-        if (name == null) {
-            return adminClients.get("Default");
-        } else if (StringUtils.equals(name, "Default") && adminClients.get(name) == null) {
-            return adminClients.entrySet().iterator().next().getValue();
+        if(StringUtils.isEmpty(name)) {
+            name = "Default";
+        }
+        if (StringUtils.equals(name, "Default") && !adminClients.containsKey(name)) {
+            return adminClients.values().iterator().next();
         }
         return adminClients.get(name);
     }

@@ -8,7 +8,9 @@ import com.greencomnetworks.franzmanager.entities.Topic;
 import com.greencomnetworks.franzmanager.services.AdminClientService;
 import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
+import com.greencomnetworks.franzmanager.utils.KafkaUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.KafkaFuture;
@@ -16,6 +18,7 @@ import org.apache.kafka.common.Node;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serdes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,11 +26,9 @@ import org.slf4j.LoggerFactory;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Path("/topics")
 @Consumes(MediaType.APPLICATION_JSON)
@@ -56,7 +57,9 @@ public class TopicsResource {
     @GET
     public List<Topic> getTopics(@QueryParam("idOnly") boolean idOnly, @QueryParam("shortVersion") boolean shortVersion) {
         try {
-            Set<String> topics = adminClient.listTopics().names().get();
+            ListTopicsOptions listTopicsOptions = new ListTopicsOptions();
+            listTopicsOptions.listInternal(true);
+            Set<String> topics = adminClient.listTopics(listTopicsOptions).names().get();
 
             // return only id
             if (idOnly) {
@@ -66,7 +69,7 @@ public class TopicsResource {
             }
 
             // need 2 kafka objects to get a complete topic descriptions
-            Collection<ConfigResource> configResources = topics.stream().map(t -> new ConfigResource(ConfigResource.Type.TOPIC, t)).collect(Collectors.toList());
+            List<ConfigResource> configResources = topics.stream().map(t -> new ConfigResource(ConfigResource.Type.TOPIC, t)).collect(Collectors.toList());
 
             KafkaFuture<Map<String, TopicDescription>> describedTopicsFuture = adminClient.describeTopics(topics).all();
             KafkaFuture<Map<ConfigResource, Config>> describedConfigsFuture = adminClient.describeConfigs(configResources).all();
@@ -92,8 +95,10 @@ public class TopicsResource {
                     }).collect(Collectors.toList());
 
             return completeTopics;
-        } catch (InterruptedException | ExecutionException e) {
+        } catch (InterruptedException e) {
             throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e.getCause());
         }
     }
 
@@ -114,86 +119,99 @@ public class TopicsResource {
 
         List<NewTopic> newTopics = FUtils.List.of(newTopic);
 
-        adminClient.createTopics(newTopics, new CreateTopicsOptions()).all();
+        try {
+            adminClient.createTopics(newTopics).all().get();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e.getCause());
+        }
 
         return Response.status(Response.Status.CREATED).build();
     }
 
     @GET
     @Path("/{topicId}")
-    public Object getTopic(@PathParam("topicId") String topicId) {
-        Collection<ConfigResource> configResources = Stream.of(new ConfigResource(ConfigResource.Type.TOPIC, topicId)).collect(Collectors.toSet());
+    public Topic getTopic(@PathParam("topicId") String topicId) {
+        // NOTE: the calls are in sequence instead of being in parallel, which leads to a slower response time, but I don't think it's really an issue here...
+        //                                 - lgaillard 01/08/2018
+        TopicDescription topicDescription = KafkaUtils.describeTopic(adminClient, topicId);
+        Config config = KafkaUtils.describeTopicConfig(adminClient, topicId);
 
-        KafkaFuture<Map<String, TopicDescription>> describedTopicsFuture = adminClient.describeTopics(Stream.of(topicId).collect(Collectors.toSet())).all();
-        KafkaFuture<Map<ConfigResource, Config>> describedConfigsFuture = adminClient.describeConfigs(configResources).all();
-
-        Map<String, TopicDescription> describedTopics = FUtils.getOrElse(() -> describedTopicsFuture.get(), null);
-        Map<ConfigResource, Config> describedConfigs = FUtils.getOrElse(() -> describedConfigsFuture.get(), null);
-
-        if (describedConfigs == null || describedTopics == null) {
+        if (topicDescription == null || config == null) {
             throw new NotFoundException("This topic (" + topicId + ") doesn't exist.");
         }
 
-        Map<String, String> configurations = describedConfigs.values().stream().findFirst().get().entries().stream().collect(Collectors.toMap(
+        Map<String, String> configurations = config.entries().stream().collect(Collectors.toMap(
                 ConfigEntry::name,
                 ConfigEntry::value
         ));
 
-        return new Topic(topicId, describedTopics.get(topicId).partitions().size(), describedTopics.get(topicId).partitions().get(0).replicas().size(), configurations);
+        return new Topic(topicId, topicDescription.partitions().size(), topicDescription.partitions().get(0).replicas().size(), configurations);
     }
 
     @PUT
     @Path("/{topicId}")
-    public Response updateTopicConfig(@PathParam("topicId") String topicId, HashMap<String, String> configurations) {
-        logger.info(configurations.toString());
-        Map<ConfigResource, Config> configs = new HashMap<>();
-        ConfigResource configResource = new ConfigResource(ConfigResource.Type.TOPIC, topicId);
-        List<ConfigEntry> configEntries = configurations.entrySet().stream().map(entry -> new ConfigEntry(entry.getKey(), entry.getValue())).collect(Collectors.toList());
-        configs.put(configResource, new Config(configEntries));
-        adminClient.alterConfigs(configs);
-        return null; // TODO: send proper response
+    public Response updateTopicConfig(@PathParam("topicId") String topicId, Map<String, String> configurations) {
+        if(!topicExist(topicId)) {
+            throw new NotFoundException("This topic (" + topicId + ") doesn't exist.");
+        }
+
+        logger.info("Updating config for '{}': {}", topicId, configurations);
+
+        try {
+            ConfigResource configResource = new ConfigResource(ConfigResource.Type.TOPIC, topicId);
+            List<ConfigEntry> configEntries = configurations.entrySet().stream().map(entry -> new ConfigEntry(entry.getKey(), entry.getValue())).collect(Collectors.toList());
+            Map<ConfigResource, Config> configs = FUtils.Map.of(configResource, new Config(configEntries));
+            adminClient.alterConfigs(configs).all().get();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e.getCause());
+        }
+
+        return Response.ok().build();
     }
 
     @DELETE
     @Path("/{topicId}")
     public Response deleteTopic(@PathParam("topicId") String topicId) {
-        try {
-            if (!topicExist(topicId)) {
-                throw new NotFoundException("This topic (" + topicId + ") doesn't exist.");
-            }
+        if (!topicExist(topicId)) {
+            throw new NotFoundException("This topic (" + topicId + ") doesn't exist.");
+        }
 
+        try {
             Collection<String> topics = FUtils.Set.of(topicId);
             adminClient.deleteTopics(topics).all().get();
-
-            return Response.ok().build();
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
         }
+
+        return Response.ok().build();
     }
 
     @GET
     @Path("/{topicId}/partitions")
     public List<Partition> getTopicPartitions(@PathParam("topicId") String topicId) {
+        if(!topicExist(topicId)) {
+            throw new NotFoundException("This topic (" + topicId + ") doesn't exist.");
+        }
+
         Properties config = new Properties();
-        config.put("bootstrap.servers", cluster.brokersConnectString);
-        KafkaConsumer<ByteBuffer, ByteBuffer> consumer = new KafkaConsumer<>(config, Serdes.ByteBuffer().deserializer(), Serdes.ByteBuffer().deserializer());
+        config.put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, cluster.brokersConnectString);
+        Deserializer<byte[]> deserializer = Serdes.ByteArray().deserializer();
+        KafkaConsumer<byte[], byte[]> consumer = new KafkaConsumer<>(config, deserializer, deserializer);
         try {
-            List<TopicPartition> topicPartitions = consumer.partitionsFor(topicId).stream()
-                    .map(pi -> new TopicPartition(pi.topic(), pi.partition()))
-                    .collect(Collectors.toList());
-            Map<TopicPartition, Long> offsetsEnd = consumer.endOffsets(topicPartitions);
-            Map<TopicPartition, Long> offsetsBeginning = consumer.beginningOffsets(topicPartitions);
-
             List<PartitionInfo> partitionInfos = consumer.partitionsFor(topicId);
+            List<TopicPartition> topicPartitions = partitionInfos.stream().map(pi->new TopicPartition(pi.topic(), pi.partition())).collect(Collectors.toList());
+            Map<TopicPartition, Long> offsetsBeginning = consumer.beginningOffsets(topicPartitions);
+            Map<TopicPartition, Long> offsetsEnd = consumer.endOffsets(topicPartitions);
 
-            return offsetsEnd.entrySet()
-                    .stream()
-                    .map(entry -> {
-                        PartitionInfo partition = partitionInfos.stream().filter(partitionInfo -> partitionInfo.partition() == entry.getKey().partition()).collect(Collectors.toList()).get(0);
-                        return new Partition(topicId, entry.getKey().partition(), offsetsBeginning.get(entry.getKey()),
-                                entry.getValue(), partition.leader().id(), nodesToInts(partition.replicas()), nodesToInts(partition.inSyncReplicas()), nodesToInts(partition.offlineReplicas()));
-                    })
-                    .collect(Collectors.toList());
+            return partitionInfos.stream().map(pi -> {
+                TopicPartition tp = new TopicPartition(pi.topic(), pi.partition());
+                return new Partition(tp.topic(), tp.partition(), offsetsBeginning.get(tp), offsetsEnd.get(tp),
+                        pi.leader().id(), nodesToInts(pi.replicas()), nodesToInts(pi.inSyncReplicas()), nodesToInts(pi.offlineReplicas()));
+            }).collect(Collectors.toList());
         } finally {
             consumer.close();
         }
@@ -201,24 +219,27 @@ public class TopicsResource {
 
     @POST
     @Path("/{topicId}/partitions")
-    public List<Partition> postTopicPartitions(@PathParam("topicId") String topicId, @QueryParam("quantity") Integer quantity) {
-        Properties config = new Properties();
-        config.put("bootstrap.servers", cluster.brokersConnectString);
-        KafkaConsumer<ByteBuffer, ByteBuffer> consumer = new KafkaConsumer<>(config, Serdes.ByteBuffer().deserializer(), Serdes.ByteBuffer().deserializer());
-        try {
-            List<PartitionInfo> partitionInfos = consumer.partitionsFor(topicId);
-
-            HashMap<String, NewPartitions> newPartitions = new HashMap<>();
-            newPartitions.put(topicId, NewPartitions.increaseTo(partitionInfos.size() + quantity));
-            adminClient.createPartitions(newPartitions);
-        } finally {
-            consumer.close();
+    public Response postTopicPartitions(@PathParam("topicId") String topicId, @QueryParam("quantity") Integer quantity) {
+        TopicDescription topicDescription = KafkaUtils.describeTopic(adminClient, topicId);
+        if(topicDescription == null) {
+            throw new NotFoundException("This topic (" + topicId + ") doesn't exist.");
         }
-        return null; // TODO: send proper response
+
+        try {
+            Map<String, NewPartitions> newPartitions =  FUtils.Map.of(topicId, NewPartitions.increaseTo(topicDescription.partitions().size() + quantity));
+            adminClient.createPartitions(newPartitions).all().get();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e.getCause());
+        }
+
+        return Response.status(Response.Status.CREATED).build();
     }
 
+
     private boolean topicExist(String id) {
-        return FUtils.getOrElse(() -> adminClient.describeTopics(Stream.of(id).collect(Collectors.toSet())).all().get(), null) != null;
+        return KafkaUtils.describeTopic(adminClient, id) != null;
     }
 
     private int[] nodesToInts(Node[] nodes) {

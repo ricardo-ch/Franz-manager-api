@@ -4,17 +4,20 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.greencomnetworks.franzmanager.entities.Cluster;
 import com.greencomnetworks.franzmanager.entities.Message;
+import com.greencomnetworks.franzmanager.services.AdminClientService;
 import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.utils.CustomObjectMapper;
 import com.greencomnetworks.franzmanager.utils.KafkaUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
-import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.Deserializer;
+import org.apache.kafka.common.serialization.Serdes;
 import org.glassfish.grizzly.websockets.DataFrame;
 import org.glassfish.grizzly.websockets.WebSocket;
 import org.glassfish.grizzly.websockets.WebSocketApplication;
@@ -27,8 +30,8 @@ import java.util.*;
 
 public class LiveMessagesResource extends WebSocketApplication {
     private static final Logger logger = LoggerFactory.getLogger(LiveMessagesResource.class);
-    private Map<WebSocket, Thread> socketThreadMap = new HashMap<>();
-    private Map<Thread, FranzConsumer> threadRunnableMap = new HashMap<>();
+
+    private Map<WebSocket, FranzConsumer> franzConsumers = new HashMap<>();
 
     private static LiveMessagesResource instance = new LiveMessagesResource();
 
@@ -38,16 +41,27 @@ public class LiveMessagesResource extends WebSocketApplication {
 
     @Override
     public void onMessage(WebSocket socket, String data) {
-        String action = data.split(":")[0];
+        if(StringUtils.isEmpty(data)) {
+            logger.warn("Received empty message");
+            return;
+        }
+
+        String[] actions = data.split(":");
+
+        String action = actions[0];
         switch (action) {
             case "subscribe":
-                this.newSocketConsumer(socket, data.split(":")[1], data.split(":")[2]);
+                if(actions.length < 3) {
+                    logger.warn("Invalid subscribe action: '{}'", data);
+                    return;
+                }
+                this.newSocketConsumer(socket, actions[1], actions[2]);
                 break;
             case "close":
                 socket.close();
                 break;
             default:
-                logger.error("Unknown socket action : " + action);
+                logger.warn("Unknown socket action : " + action);
                 break;
         }
     }
@@ -59,41 +73,44 @@ public class LiveMessagesResource extends WebSocketApplication {
 
     @Override
     public void onClose(WebSocket socket, DataFrame frame) {
-        Thread franzConsumerThread = socketThreadMap.get(socket);
-        FranzConsumer franzConsumerRunnable = threadRunnableMap.get(franzConsumerThread);
-        try {
-            franzConsumerRunnable.shutdown();
-            franzConsumerThread.join();
-        } catch (InterruptedException e) {
-            logger.info("closed thread " + franzConsumerThread.getId());
-        }
-        threadRunnableMap.remove(franzConsumerThread);
-        socketThreadMap.remove(socket);
-        logger.info("websocket closed, consumer " + franzConsumerRunnable.id + " closed.");
+        FranzConsumer franzConsumer = franzConsumers.get(socket);
+        franzConsumer.shutdown();
+
+        franzConsumers.remove(socket);
+
+        logger.info("websocket closed, consumer " + franzConsumer.id + " closed.");
     }
 
     private void newSocketConsumer(WebSocket socket, String topic, String clusterId) {
-        FranzConsumer franzConsumerRunnable = new FranzConsumer("franz-manager-api", topic, socket, clusterId);
-        Thread franzConsumerThread = new Thread(franzConsumerRunnable);
-        franzConsumerThread.start();
-        socketThreadMap.put(socket, franzConsumerThread);
-        threadRunnableMap.put(franzConsumerThread, franzConsumerRunnable);
+        AdminClient adminClient = AdminClientService.getAdminClient(clusterId);
+        if(KafkaUtils.describeTopic(adminClient, topic) == null) {
+            logger.warn("Trying to subscribe to an unknown topic: '{}' on '{}'", topic, clusterId);
+            return;
+        }
+
+        FranzConsumer franzConsumer = new FranzConsumer("franz-manager-api_live", topic, socket, clusterId);
+        franzConsumers.put(socket, franzConsumer);
+        franzConsumer.start();
     }
 
     private class FranzConsumer implements Runnable {
+
         private final KafkaConsumer<String, String> consumer;
-        private final String topic;
         private final String id;
+        private final String groupId;
+        private final String topic;
         private final WebSocket socket;
+
+        private final Thread thread;
 
         private FranzConsumer(String groupId,
                               String topic,
                               WebSocket socket,
                               String clusterId) {
             this.id = UUID.randomUUID().toString();
+            this.groupId = groupId + '_' + id;
             this.topic = topic;
             this.socket = socket;
-            final Properties props = new Properties();
             Cluster cluster = null;
             for (Cluster c : ConstantsService.clusters) {
                 if (StringUtils.equals(c.name, clusterId)) {
@@ -104,12 +121,16 @@ public class LiveMessagesResource extends WebSocketApplication {
             if (cluster == null) {
                 throw new NotFoundException("Cluster not found for the id " + clusterId);
             }
+
+            final Properties props = new Properties();
             props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, cluster.brokersConnectString);
             props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-            props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-            props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-            props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-            this.consumer = new KafkaConsumer<>(props);
+            props.put(ConsumerConfig.GROUP_ID_CONFIG, this.groupId);
+            props.put(ConsumerConfig.CLIENT_ID_CONFIG, id);
+            Deserializer<String> deserializer = Serdes.String().deserializer();
+            this.consumer = new KafkaConsumer<>(props, deserializer, deserializer);
+
+            this.thread = new Thread(this);
         }
 
         @Override
@@ -122,7 +143,7 @@ public class LiveMessagesResource extends WebSocketApplication {
 
                 while (true) {
                     ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
-                    ArrayList<Message> messages = new ArrayList<>();
+                    List<Message> messages = new ArrayList<>();
                     for (ConsumerRecord<String, String> record : records) {
                         Message message = new Message(record.value(), record.key(), record.partition(), record.offset(), record.timestamp());
                         messages.add(message);
@@ -145,8 +166,13 @@ public class LiveMessagesResource extends WebSocketApplication {
             }
         }
 
+        public void start() {
+            thread.start();
+        }
+
         public void shutdown() {
             consumer.wakeup();
+            try { thread.join(2000); } catch (InterruptedException e) { /* noop */ }
         }
     }
 }

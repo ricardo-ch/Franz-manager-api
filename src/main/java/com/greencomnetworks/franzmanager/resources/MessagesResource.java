@@ -5,6 +5,7 @@ import com.greencomnetworks.franzmanager.entities.Message;
 import com.greencomnetworks.franzmanager.services.AdminClientService;
 import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
+import com.greencomnetworks.franzmanager.utils.KafkaUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.TopicDescription;
@@ -12,9 +13,9 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.Deserializer;
+import org.apache.kafka.common.serialization.Serdes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,7 +24,6 @@ import javax.ws.rs.core.MediaType;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Path("/topics/{topicId}/messages")
 @Consumes(MediaType.APPLICATION_JSON)
@@ -49,12 +49,11 @@ public class MessagesResource {
         }
     }
     @GET
-    public Object getMessages(@PathParam("topicId") String topicId,
+    public List<Message> getMessages(@PathParam("topicId") String topicId,
                               @DefaultValue("10") @QueryParam("quantity") Integer quantity,
                               @QueryParam("from") Long from) {
-        KafkaFuture<Map<String, TopicDescription>> describedTopicsFuture = adminClient.describeTopics(Stream.of(topicId).collect(Collectors.toSet())).all();
-        Map<String, TopicDescription> describedTopics = FUtils.getOrElse(() -> describedTopicsFuture.get(), null);
-        if (describedTopics == null) {
+        TopicDescription topicDescription = KafkaUtils.describeTopic(adminClient, topicId);
+        if (topicDescription == null) {
             throw new NotFoundException("This topic (" + topicId + ") doesn't exist.");
         }
 
@@ -62,13 +61,12 @@ public class MessagesResource {
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, cluster.brokersConnectString);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "franz-manager-api");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
 
-        final Consumer<String, String> consumer = new KafkaConsumer<>(props);
+        Deserializer<String> deserializer = Serdes.String().deserializer();
+        final Consumer<String, String> consumer = new KafkaConsumer<>(props, deserializer, deserializer);
         try {
             List<Message> messages = new ArrayList<>();
-            List<TopicPartition> topicPartitions = consumer.partitionsFor(topicId).stream().map(partitionInfo -> new TopicPartition(topicId, partitionInfo.partition())).collect(Collectors.toList());
+            List<TopicPartition> topicPartitions = KafkaUtils.topicPartitionsOf(consumer, topicId);
 
             consumer.assign(topicPartitions);
             consumer.seekToEnd(topicPartitions);
