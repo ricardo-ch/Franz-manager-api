@@ -2,6 +2,7 @@ package com.greencomnetworks.franzmanager.services;
 
 import com.greencomnetworks.franzmanager.entities.ConsumerOffsetRecord;
 import com.greencomnetworks.franzmanager.utils.KafkaUtils;
+import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -61,7 +62,8 @@ public class KafkaConsumerOffsetReader {
         logger.info("Connecting to '{}': {}", bootstrapServers, CONSUMER_OFFSET_TOPIC);
 
         Map<String, Object> config = new HashMap<>();
-        config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        config.put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        config.put(CommonClientConfigs.CLIENT_ID_CONFIG, CONSUMER_GROUP_ID);
         config.put(ConsumerConfig.GROUP_ID_CONFIG, CONSUMER_GROUP_ID);
         config.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         config.put(ConsumerConfig.EXCLUDE_INTERNAL_TOPICS_CONFIG, false);
