@@ -74,17 +74,20 @@ public class LiveMessagesResource extends WebSocketApplication {
     @Override
     public void onClose(WebSocket socket, DataFrame frame) {
         FranzConsumer franzConsumer = franzConsumers.get(socket);
-        franzConsumer.shutdown();
-
-        franzConsumers.remove(socket);
-
-        logger.info("websocket closed, consumer " + franzConsumer.id + " closed.");
+        if(franzConsumer != null) {
+            franzConsumer.shutdown();
+            franzConsumers.remove(socket);
+            logger.info("websocket closed, consumer " + franzConsumer.id + " closed.");
+        } else {
+            logger.info("websocket closed");
+        }
     }
 
     private void newSocketConsumer(WebSocket socket, String topic, String clusterId) {
         AdminClient adminClient = AdminClientService.getAdminClient(clusterId);
         if(KafkaUtils.describeTopic(adminClient, topic) == null) {
             logger.warn("Trying to subscribe to an unknown topic: '{}' on '{}'", topic, clusterId);
+            socket.close();
             return;
         }
 
@@ -126,7 +129,7 @@ public class LiveMessagesResource extends WebSocketApplication {
             props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, cluster.brokersConnectString);
             props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
             props.put(ConsumerConfig.GROUP_ID_CONFIG, this.groupId);
-            props.put(ConsumerConfig.CLIENT_ID_CONFIG, id);
+            props.put(ConsumerConfig.CLIENT_ID_CONFIG, this.groupId);
             Deserializer<String> deserializer = Serdes.String().deserializer();
             this.consumer = new KafkaConsumer<>(props, deserializer, deserializer);
 
