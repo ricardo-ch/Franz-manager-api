@@ -7,14 +7,14 @@ import java.util.HashMap;
 public class Metric {
     public final String type;
     public final String name;
-    public final String topic;
+    public final int brokerId;
     public final HashMap<String, Object> metrics;
 
     @JsonCreator
-    public Metric(String type, String name, String topic, HashMap<String, Object> metrics) {
+    public Metric(String type, String name, int brokerId, HashMap<String, Object> metrics) {
         this.type = type;
         this.name = name;
-        this.topic = topic;
+        this.brokerId = brokerId;
         this.metrics = metrics;
     }
 
