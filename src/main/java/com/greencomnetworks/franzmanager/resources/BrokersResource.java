@@ -19,10 +19,7 @@ import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
@@ -37,18 +34,18 @@ public class BrokersResource {
     private AdminClient adminClient;
     private HashMap<String, MBeanServerConnection> mBeanServerConnections;
 
-    public BrokersResource(@HeaderParam("clusterId") String clusterId){
-        if(StringUtils.isEmpty(clusterId)) clusterId = "Default";
+    public BrokersResource(@HeaderParam("clusterId") String clusterId) {
+        if (StringUtils.isEmpty(clusterId)) clusterId = "Default";
         this.clusterId = clusterId;
         this.adminClient = AdminClientService.getAdminClient(clusterId);
         this.mBeanServerConnections = KafkaMetricsService.getMBeanServerConnections(clusterId);
         for (Cluster cluster : ConstantsService.clusters) {
-            if(StringUtils.equals(cluster.name, clusterId)){
+            if (StringUtils.equals(cluster.name, clusterId)) {
                 this.cluster = cluster;
                 break;
             }
         }
-        if(this.cluster == null){
+        if (this.cluster == null) {
             throw new NotFoundException("Cluster not found for id " + clusterId);
         }
     }
@@ -56,12 +53,12 @@ public class BrokersResource {
     @GET
     public List<Broker> getBrokers() {
         try {
+            Cluster cluster = ConstantsService.clusters.stream().filter(c -> c.name.equals(clusterId)).findAny().orElse(null);
             Collection<Node> brokers = adminClient.describeCluster().nodes().get();
-
             Collection<ConfigResource> configResources = brokers.stream().map(broker -> new ConfigResource(ConfigResource.Type.BROKER, broker.idString())).collect(Collectors.toSet());
             Map<ConfigResource, Config> brokersConfigs = adminClient.describeConfigs(configResources).all().get();
 
-            return brokers.stream().map(broker -> {
+            List<Broker> brokerList = brokers.stream().map(broker -> {
                 ConfigResource configResource = new ConfigResource(ConfigResource.Type.BROKER, broker.idString());
                 Config config = brokersConfigs.get(configResource);
 
@@ -80,11 +77,20 @@ public class BrokersResource {
                     logger.error("Error while retrieving JMX data: {}", e.getMessage(), e);
                 }
 
-                return new Broker(broker.idString(), broker.host(), broker.port(), configs, bytesIn, bytesOut);
+                return new Broker(broker.idString(), broker.host(), broker.port(), configs, bytesIn, bytesOut, Broker.State.OK);
             }).collect(Collectors.toList());
+
+            Arrays.stream(cluster.brokersConnectString.split(",")).forEach(brokerString -> {
+                Node existingNode = brokers.stream().filter(b -> b.host().equals(brokerString.split(":")[0])).findAny().orElse(null);
+                if (existingNode == null) {
+                    brokerList.add(new Broker("?", brokerString.split(":")[0], Integer.parseInt(brokerString.split(":")[1]), null, (float) 0, (float) 0, Broker.State.BROKEN));
+                }
+            });
+
+            return brokerList;
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
-        } catch(ExecutionException e) {
+        } catch (ExecutionException e) {
             throw new RuntimeException(e.getCause());
         }
     }
@@ -94,7 +100,7 @@ public class BrokersResource {
     public Broker getBroker(@PathParam("brokerId") String brokerId) {
         try {
             Config config = KafkaUtils.describeBrokerConfig(adminClient, brokerId);
-            if(config == null) {
+            if (config == null) {
                 throw new NotFoundException("This broker (" + brokerId + ") doesn't exist.");
             }
 
@@ -120,7 +126,7 @@ public class BrokersResource {
                 logger.error("Error while retrieving JMX data: {}", e.getMessage(), e);
             }
 
-            return new Broker(node.idString(), node.host(), node.port(), configs, bytesIn, bytesOut);
+            return new Broker(node.idString(), node.host(), node.port(), configs, bytesIn, bytesOut, Broker.State.OK);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         } catch (ExecutionException e) {
