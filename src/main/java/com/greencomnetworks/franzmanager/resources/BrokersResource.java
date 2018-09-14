@@ -5,6 +5,7 @@ import com.greencomnetworks.franzmanager.entities.Cluster;
 import com.greencomnetworks.franzmanager.services.AdminClientService;
 import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.services.KafkaMetricsService;
+import com.greencomnetworks.franzmanager.utils.FUtils;
 import com.greencomnetworks.franzmanager.utils.KafkaUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.AdminClient;
@@ -19,6 +20,8 @@ import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -53,12 +56,18 @@ public class BrokersResource {
     @GET
     public List<Broker> getBrokers() {
         try {
+            String hostName = InetAddress.getLocalHost().getHostName();
             Cluster cluster = ConstantsService.clusters.stream().filter(c -> c.name.equals(clusterId)).findAny().orElse(null);
-            Collection<Node> brokers = adminClient.describeCluster().nodes().get();
+            Collection<Node> brokers = adminClient.describeCluster().nodes().get().stream().map(broker -> {
+                if (broker.host().equals(hostName)) {
+                    return new Node(broker.id(), "127.0.0.1", broker.port(), broker.rack());
+                }
+                return broker;
+            }).collect(Collectors.toList());
             Collection<ConfigResource> configResources = brokers.stream().map(broker -> new ConfigResource(ConfigResource.Type.BROKER, broker.idString())).collect(Collectors.toSet());
             Map<ConfigResource, Config> brokersConfigs = adminClient.describeConfigs(configResources).all().get();
 
-            List<Broker> brokerList = brokers.stream().map(broker -> {
+            List<Broker> brokerList = FUtils.getOrElse(brokers.stream().map(broker -> {
                 ConfigResource configResource = new ConfigResource(ConfigResource.Type.BROKER, broker.idString());
                 Config config = brokersConfigs.get(configResource);
 
@@ -69,16 +78,19 @@ public class BrokersResource {
 
                 Float bytesIn = null;
                 Float bytesOut = null;
+                Broker.State brokerState = Broker.State.OK;
                 try {
                     MBeanServerConnection mbsc = mBeanServerConnections.get(broker.host());
                     bytesIn = Float.valueOf(mbsc.getAttribute(new ObjectName("kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec"), "OneMinuteRate").toString());
                     bytesOut = Float.valueOf(mbsc.getAttribute(new ObjectName("kafka.server:type=BrokerTopicMetrics,name=BytesOutPerSec"), "OneMinuteRate").toString());
                 } catch (Exception e) {
                     logger.error("Error while retrieving JMX data: {}", e.getMessage(), e);
+                    bytesIn = null;
+                    bytesOut = null;
+                    brokerState = Broker.State.BROKEN;
                 }
-
-                return new Broker(broker.idString(), broker.host(), broker.port(), configs, bytesIn, bytesOut, Broker.State.OK);
-            }).collect(Collectors.toList());
+                return new Broker(broker.idString(), broker.host(), broker.port(), configs, bytesIn, bytesOut, brokerState);
+            }).collect(Collectors.toList()), new ArrayList<>());
 
             Arrays.stream(cluster.brokersConnectString.split(",")).forEach(brokerString -> {
                 Node existingNode = brokers.stream().filter(b -> b.host().equals(brokerString.split(":")[0])).findAny().orElse(null);
@@ -90,7 +102,7 @@ public class BrokersResource {
             return brokerList;
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
-        } catch (ExecutionException e) {
+        } catch (ExecutionException | UnknownHostException e) {
             throw new RuntimeException(e.getCause());
         }
     }

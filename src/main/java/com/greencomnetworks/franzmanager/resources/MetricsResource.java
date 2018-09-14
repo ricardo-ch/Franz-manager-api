@@ -17,8 +17,11 @@ import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import java.io.IOException;
 import java.lang.management.MemoryUsage;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 
 @Path("/metrics")
@@ -58,7 +61,16 @@ public class MetricsResource {
 
         ObjectName objName = new ObjectName(queryString);
         HashMap<String, MBeanServerConnection> mbscs = mBeanServerConnections;
-        Collection<Node> brokers = adminClient.describeCluster().nodes().get();
+        Collection<Node> brokers = adminClient.describeCluster().nodes().get().stream().map(broker -> {
+            try {
+                if (broker.host().equals(InetAddress.getLocalHost().getHostName())) {
+                    return new Node(broker.id(), "127.0.0.1", broker.port(), broker.rack());
+                }
+            } catch (UnknownHostException e) {
+                throw new RuntimeException(e);
+            }
+            return broker;
+        }).collect(Collectors.toList());
         List<Metric> metrics = new ArrayList<>();
 
         for (String brokerHost : mbscs.keySet()) {
@@ -89,7 +101,7 @@ public class MetricsResource {
             } catch (IntrospectionException e) {
                 // that means a jmx server is not available
                 logger.warn("A jmx server cannot be reached : {}", e.getMessage());
-            } catch (InstanceNotFoundException e) {
+            } catch (InstanceNotFoundException | NoSuchElementException e) {
                 logger.warn("Cannot retrieved this metric {{}}, maybe your kafka need to be upgraded.", queryString);
             }
         }
