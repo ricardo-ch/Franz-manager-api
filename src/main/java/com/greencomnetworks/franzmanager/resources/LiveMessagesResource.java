@@ -16,6 +16,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
+import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serdes;
 import org.glassfish.grizzly.websockets.DataFrame;
@@ -148,7 +149,7 @@ public class LiveMessagesResource extends WebSocketApplication {
                     ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
                     List<Message> messages = new ArrayList<>();
                     for (ConsumerRecord<String, String> record : records) {
-                        Message message = new Message(record.value(), record.key(), record.partition(), record.offset(), record.timestamp());
+                        Message message = new Message(record.value(), record.key(), record.partition(), record.offset(), record.timestamp(), record.headers());
                         messages.add(message);
                     }
                     if (messages.size() > 0) {
