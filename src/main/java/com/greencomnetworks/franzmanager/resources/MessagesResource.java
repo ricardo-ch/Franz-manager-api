@@ -115,7 +115,7 @@ public class MessagesResource {
                     if (noRecordsCount > giveUp) break;
                 } else {
                     consumerRecords.forEach(record -> {
-                        messages.add(new Message(record.value(), record.key(), record.partition(), record.offset(), record.timestamp()));
+                        messages.add(new Message(record.value(), record.key(), record.partition(), record.offset(), record.timestamp(), record.headers()));
                     });
                     if (from == null && messages.size() >= topicPartitions.size() * quantity) break;
                 }
