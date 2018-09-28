@@ -13,7 +13,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -38,7 +37,7 @@ public class TopicMetricsService {
         public void run() {
             while (true) {
                 try {
-                    Thread.sleep(5000);
+                    Thread.sleep(15000); // wait 15 sc before first try.
 
                     HashMap<String, HashMap<String, MBeanServerConnection>> mBeanServerConnections = KafkaMetricsService.getMBeanServerConnections();
 
