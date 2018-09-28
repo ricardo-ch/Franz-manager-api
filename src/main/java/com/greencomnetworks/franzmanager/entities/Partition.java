@@ -1,5 +1,9 @@
 package com.greencomnetworks.franzmanager.entities;
 
+import org.apache.kafka.common.TopicPartitionInfo;
+
+import java.util.stream.Collectors;
+
 public class Partition {
     private String topic;
     private int partition;
@@ -18,6 +22,17 @@ public class Partition {
         this.leader = leader;
         this.replicas = replicas;
         this.inSyncReplicas = inSyncReplicas;
+        this.offlineReplicas = offlineReplicas;
+    }
+
+    public Partition(String topic, long beginningOffset, long endOffset, TopicPartitionInfo topicPartitionInfo, int[] offlineReplicas) {
+        this.topic = topic;
+        this.partition = topicPartitionInfo.partition();
+        this.beginningOffset = beginningOffset;
+        this.endOffset = endOffset;
+        this.leader = topicPartitionInfo.leader().id();
+        this.replicas = topicPartitionInfo.replicas().stream().mapToInt(replicaNode -> replicaNode.id()).toArray();
+        this.inSyncReplicas = topicPartitionInfo.isr().stream().mapToInt(isrNode -> isrNode.id()).toArray();
         this.offlineReplicas = offlineReplicas;
     }
 

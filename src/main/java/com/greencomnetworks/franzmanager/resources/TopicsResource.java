@@ -1,10 +1,7 @@
 package com.greencomnetworks.franzmanager.resources;
 
 import com.greencomnetworks.franzmanager.core.ConflictException;
-import com.greencomnetworks.franzmanager.entities.Broker;
-import com.greencomnetworks.franzmanager.entities.Cluster;
-import com.greencomnetworks.franzmanager.entities.Partition;
-import com.greencomnetworks.franzmanager.entities.Topic;
+import com.greencomnetworks.franzmanager.entities.*;
 import com.greencomnetworks.franzmanager.services.AdminClientService;
 import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
@@ -40,16 +37,16 @@ public class TopicsResource {
     Cluster cluster;
     AdminClient adminClient;
 
-    public TopicsResource(@HeaderParam("clusterId") String clusterId){
+    public TopicsResource(@HeaderParam("clusterId") String clusterId) {
         this.clusterId = clusterId;
         this.adminClient = AdminClientService.getAdminClient(this.clusterId);
         for (Cluster cluster : ConstantsService.clusters) {
-            if(StringUtils.equals(cluster.name, clusterId)){
+            if (StringUtils.equals(cluster.name, clusterId)) {
                 this.cluster = cluster;
                 break;
             }
         }
-        if(this.cluster == null){
+        if (this.cluster == null) {
             throw new NotFoundException("Cluster not found for id " + clusterId);
         }
     }
@@ -84,14 +81,16 @@ public class TopicsResource {
                         TopicDescription describedTopic = describedTopics.get(topicName);
 
                         Map<String, String> configurations = null;
-                        if(!shortVersion) {
+                        if (!shortVersion) {
                             configurations = entry.getValue().entries().stream()
                                     .collect(Collectors.toMap(
                                             ConfigEntry::name,
                                             ConfigEntry::value
                                     ));
                         }
-                        return new Topic(topicName, describedTopic.partitions().size(), describedTopic.partitions().get(0).replicas().size(), configurations);
+                        List<Partition> topicPartitions = describedTopic.partitions().stream()
+                                .map(topicPartitionInfo -> new Partition(topicName, -1, -1, topicPartitionInfo, null)).collect(Collectors.toList());
+                        return new Topic(topicName, topicPartitions, configurations);
                     }).collect(Collectors.toList());
 
             return completeTopics;
@@ -103,7 +102,7 @@ public class TopicsResource {
     }
 
     @POST
-    public Response createTopic(Topic topic) {
+    public Response createTopic(TopicCreation topic) {
         if (topicExist(topic.id)) {
             throw new ConflictException("This topic (" + topic.id + ") already exist.");
         }
@@ -147,13 +146,15 @@ public class TopicsResource {
                 ConfigEntry::value
         ));
 
-        return new Topic(topicId, topicDescription.partitions().size(), topicDescription.partitions().get(0).replicas().size(), configurations);
+        List<Partition> topicPartitions = topicDescription.partitions().stream()
+                .map(topicPartitionInfo -> new Partition(topicId, -1, -1, topicPartitionInfo, null)).collect(Collectors.toList());
+        return new Topic(topicId, topicPartitions, configurations);
     }
 
     @PUT
     @Path("/{topicId}")
     public Response updateTopicConfig(@PathParam("topicId") String topicId, Map<String, String> configurations) {
-        if(!topicExist(topicId)) {
+        if (!topicExist(topicId)) {
             throw new NotFoundException("This topic (" + topicId + ") doesn't exist.");
         }
 
@@ -193,7 +194,7 @@ public class TopicsResource {
     @GET
     @Path("/{topicId}/partitions")
     public List<Partition> getTopicPartitions(@PathParam("topicId") String topicId) {
-        if(!topicExist(topicId)) {
+        if (!topicExist(topicId)) {
             throw new NotFoundException("This topic (" + topicId + ") doesn't exist.");
         }
 
@@ -203,7 +204,7 @@ public class TopicsResource {
         KafkaConsumer<byte[], byte[]> consumer = new KafkaConsumer<>(config, deserializer, deserializer);
         try {
             List<PartitionInfo> partitionInfos = consumer.partitionsFor(topicId);
-            List<TopicPartition> topicPartitions = partitionInfos.stream().map(pi->new TopicPartition(pi.topic(), pi.partition())).collect(Collectors.toList());
+            List<TopicPartition> topicPartitions = partitionInfos.stream().map(pi -> new TopicPartition(pi.topic(), pi.partition())).collect(Collectors.toList());
             Map<TopicPartition, Long> offsetsBeginning = consumer.beginningOffsets(topicPartitions);
             Map<TopicPartition, Long> offsetsEnd = consumer.endOffsets(topicPartitions);
 
@@ -221,12 +222,12 @@ public class TopicsResource {
     @Path("/{topicId}/partitions")
     public Response postTopicPartitions(@PathParam("topicId") String topicId, @QueryParam("quantity") Integer quantity) {
         TopicDescription topicDescription = KafkaUtils.describeTopic(adminClient, topicId);
-        if(topicDescription == null) {
+        if (topicDescription == null) {
             throw new NotFoundException("This topic (" + topicId + ") doesn't exist.");
         }
 
         try {
-            Map<String, NewPartitions> newPartitions =  FUtils.Map.of(topicId, NewPartitions.increaseTo(topicDescription.partitions().size() + quantity));
+            Map<String, NewPartitions> newPartitions = FUtils.Map.of(topicId, NewPartitions.increaseTo(topicDescription.partitions().size() + quantity));
             adminClient.createPartitions(newPartitions).all().get();
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
