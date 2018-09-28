@@ -4,6 +4,7 @@ import com.greencomnetworks.franzmanager.resources.LiveMessagesResource;
 import com.greencomnetworks.franzmanager.services.ConstantsService;
 import com.greencomnetworks.franzmanager.services.KafkaConsumerOffsetReader;
 import com.greencomnetworks.franzmanager.services.KafkaMetricsService;
+import com.greencomnetworks.franzmanager.services.TopicMetricsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.glassfish.grizzly.http.server.*;
@@ -77,7 +78,7 @@ public class FranzManagerApi {
         ConstantsService.init();
         KafkaConsumerOffsetReader.init();
         KafkaMetricsService.init();
-
+        TopicMetricsService.init();
         // Set Worker Pool Size
         for (NetworkListener listener : server.getListeners()) {
             listener.getTransport().getWorkerThreadPoolConfig().setMaxPoolSize(apiConfig.listenerWorkersCount);

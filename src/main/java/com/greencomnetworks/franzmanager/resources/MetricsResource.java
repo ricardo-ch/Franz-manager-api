@@ -3,6 +3,7 @@ package com.greencomnetworks.franzmanager.resources;
 import com.greencomnetworks.franzmanager.entities.Metric;
 import com.greencomnetworks.franzmanager.services.AdminClientService;
 import com.greencomnetworks.franzmanager.services.KafkaMetricsService;
+import com.greencomnetworks.franzmanager.services.TopicMetricsService;
 import com.greencomnetworks.franzmanager.utils.FUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
@@ -32,10 +33,12 @@ public class MetricsResource {
 
     private HashMap<String, MBeanServerConnection> mBeanServerConnections;
     private AdminClient adminClient;
+    private String clusterId;
 
     public MetricsResource(@HeaderParam("clusterId") String clusterId) {
-        this.mBeanServerConnections = KafkaMetricsService.getMBeanServerConnections(clusterId);
+        this.mBeanServerConnections = KafkaMetricsService.getMBeanServerConnection(clusterId);
         this.adminClient = AdminClientService.getAdminClient(clusterId);
+        this.clusterId = clusterId;
     }
 
     @GET
@@ -106,5 +109,11 @@ public class MetricsResource {
             }
         }
         return metrics;
+    }
+
+    @Path("/topics")
+    @GET
+    public HashMap<String, HashMap<String, Metric>> getTopicsMetric() {
+        return TopicMetricsService.getTopicsMetrics(clusterId);
     }
 }

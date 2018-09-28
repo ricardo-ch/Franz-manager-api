@@ -41,7 +41,7 @@ public class BrokersResource {
         if (StringUtils.isEmpty(clusterId)) clusterId = "Default";
         this.clusterId = clusterId;
         this.adminClient = AdminClientService.getAdminClient(clusterId);
-        this.mBeanServerConnections = KafkaMetricsService.getMBeanServerConnections(clusterId);
+        this.mBeanServerConnections = KafkaMetricsService.getMBeanServerConnection(clusterId);
         for (Cluster cluster : ConstantsService.clusters) {
             if (StringUtils.equals(cluster.name, clusterId)) {
                 this.cluster = cluster;
