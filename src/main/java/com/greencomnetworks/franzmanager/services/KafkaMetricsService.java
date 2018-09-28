@@ -20,11 +20,15 @@ public class KafkaMetricsService {
         new Thread(new JmxConnectivityCheck(), "JmxConnectivityCheck").start();
     }
 
-    public static HashMap<String, MBeanServerConnection> getMBeanServerConnections(String clusterId) {
+    public static HashMap<String, MBeanServerConnection> getMBeanServerConnection(String clusterId) {
         if (clusterId == null) {
             clusterId = "Default";
         }
         return mBeanServerConnections.get(clusterId);
+    }
+
+    public static HashMap<String, HashMap<String, MBeanServerConnection>> getMBeanServerConnections() {
+        return mBeanServerConnections;
     }
 
 
